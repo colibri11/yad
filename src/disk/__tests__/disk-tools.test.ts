@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("yandex_disk_list", () => {
+describe("yad_disk_list", () => {
   it("calls propfind and skips first entry (self)", async () => {
     vi.mocked(webdav.propfind).mockResolvedValue([
       {
@@ -64,7 +64,7 @@ describe("yandex_disk_list", () => {
       },
     ]);
 
-    const tool = findTool("yandex_disk_list");
+    const tool = findTool("yad_disk_list");
     const result = await tool.execute("id", { path: "/" });
     const items = JSON.parse(result.content[0].text);
 
@@ -77,7 +77,7 @@ describe("yandex_disk_list", () => {
   });
 });
 
-describe("yandex_disk_info", () => {
+describe("yad_disk_info", () => {
   it("calls propfind with depth 0", async () => {
     vi.mocked(webdav.propfind).mockResolvedValue([
       {
@@ -91,7 +91,7 @@ describe("yandex_disk_info", () => {
       },
     ]);
 
-    const tool = findTool("yandex_disk_info");
+    const tool = findTool("yad_disk_info");
     const result = await tool.execute("id", { path: "/file.txt" });
     const info = JSON.parse(result.content[0].text);
 
@@ -108,16 +108,16 @@ describe("yandex_disk_info", () => {
   it("throws when resource not found", async () => {
     vi.mocked(webdav.propfind).mockResolvedValue([]);
 
-    const tool = findTool("yandex_disk_info");
+    const tool = findTool("yad_disk_info");
     await expect(tool.execute("id", { path: "/missing" })).rejects.toThrow("Resource not found");
   });
 });
 
-describe("yandex_disk_download", () => {
+describe("yad_disk_download", () => {
   it("returns text for text files", async () => {
     vi.mocked(webdav.download).mockResolvedValue(Buffer.from("Hello, world!"));
 
-    const tool = findTool("yandex_disk_download");
+    const tool = findTool("yad_disk_download");
     const result = await tool.execute("id", { path: "/readme.txt" });
 
     expect(result.content[0].text).toBe("Hello, world!");
@@ -127,7 +127,7 @@ describe("yandex_disk_download", () => {
     const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0a]);
     vi.mocked(webdav.download).mockResolvedValue(binary);
 
-    const tool = findTool("yandex_disk_download");
+    const tool = findTool("yad_disk_download");
     const result = await tool.execute("id", { path: "/image.png" });
 
     expect(result.content[0].text).toContain("[Binary file");
@@ -135,11 +135,11 @@ describe("yandex_disk_download", () => {
   });
 });
 
-describe("yandex_disk_upload", () => {
+describe("yad_disk_upload", () => {
   it("calls upload with correct args", async () => {
     vi.mocked(webdav.upload).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_upload");
+    const tool = findTool("yad_disk_upload");
     const result = await tool.execute("id", {
       path: "/notes.txt",
       content: "my notes",
@@ -156,11 +156,11 @@ describe("yandex_disk_upload", () => {
   });
 });
 
-describe("yandex_disk_mkdir", () => {
+describe("yad_disk_mkdir", () => {
   it("calls mkcol", async () => {
     vi.mocked(webdav.mkcol).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_mkdir");
+    const tool = findTool("yad_disk_mkdir");
     await tool.execute("id", { path: "/new-folder" });
 
     expect(webdav.mkcol).toHaveBeenCalledWith(
@@ -170,11 +170,11 @@ describe("yandex_disk_mkdir", () => {
   });
 });
 
-describe("yandex_disk_delete", () => {
+describe("yad_disk_delete", () => {
   it("calls deleteResource", async () => {
     vi.mocked(webdav.deleteResource).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_delete");
+    const tool = findTool("yad_disk_delete");
     await tool.execute("id", { path: "/old.txt" });
 
     expect(webdav.deleteResource).toHaveBeenCalledWith(
@@ -184,11 +184,11 @@ describe("yandex_disk_delete", () => {
   });
 });
 
-describe("yandex_disk_move", () => {
+describe("yad_disk_move", () => {
   it("calls move with overwrite=false by default", async () => {
     vi.mocked(webdav.move).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_move");
+    const tool = findTool("yad_disk_move");
     await tool.execute("id", { from: "/a.txt", to: "/b.txt" });
 
     expect(webdav.move).toHaveBeenCalledWith(expect.anything(), "/a.txt", "/b.txt", false);
@@ -197,29 +197,29 @@ describe("yandex_disk_move", () => {
   it("passes overwrite=true when specified", async () => {
     vi.mocked(webdav.move).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_move");
+    const tool = findTool("yad_disk_move");
     await tool.execute("id", { from: "/a.txt", to: "/b.txt", overwrite: true });
 
     expect(webdav.move).toHaveBeenCalledWith(expect.anything(), "/a.txt", "/b.txt", true);
   });
 });
 
-describe("yandex_disk_copy", () => {
+describe("yad_disk_copy", () => {
   it("calls copy", async () => {
     vi.mocked(webdav.copy).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_copy");
+    const tool = findTool("yad_disk_copy");
     await tool.execute("id", { from: "/src.txt", to: "/dst.txt" });
 
     expect(webdav.copy).toHaveBeenCalledWith(expect.anything(), "/src.txt", "/dst.txt", false);
   });
 });
 
-describe("yandex_disk_publish", () => {
+describe("yad_disk_publish", () => {
   it("publishes and returns URL", async () => {
     vi.mocked(webdav.publish).mockResolvedValue("https://yadi.sk/d/abc123");
 
-    const tool = findTool("yandex_disk_publish");
+    const tool = findTool("yad_disk_publish");
     const result = await tool.execute("id", { path: "/shared.pdf" });
 
     expect(result.content[0].text).toContain("https://yadi.sk/d/abc123");
@@ -229,7 +229,7 @@ describe("yandex_disk_publish", () => {
   it("unpublishes when flag is set", async () => {
     vi.mocked(webdav.unpublish).mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_disk_publish");
+    const tool = findTool("yad_disk_publish");
     const result = await tool.execute("id", { path: "/shared.pdf", unpublish: true });
 
     expect(result.content[0].text).toContain("Unpublished");

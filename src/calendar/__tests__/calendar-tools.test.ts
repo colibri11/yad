@@ -41,14 +41,14 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("yandex_calendar_list", () => {
+describe("yad_calendar_list", () => {
   it("returns all calendars", async () => {
     mockFetchCalendars.mockResolvedValue([
       { displayName: "Personal", url: "/cal/1/", ctag: "abc", description: "My calendar" },
       { displayName: "Work", url: "/cal/2/", ctag: "def", description: "" },
     ]);
 
-    const tool = findTool("yandex_calendar_list");
+    const tool = findTool("yad_calendar_list");
     const result = await tool.execute();
     const data = JSON.parse(result.content[0].text);
 
@@ -58,7 +58,7 @@ describe("yandex_calendar_list", () => {
   });
 });
 
-describe("yandex_calendar_events", () => {
+describe("yad_calendar_events", () => {
   it("fetches events from first calendar when no URL given", async () => {
     mockFetchCalendars.mockResolvedValue([{ displayName: "Personal", url: "/cal/1/" }]);
     mockFetchCalendarObjects.mockResolvedValue([
@@ -69,7 +69,7 @@ describe("yandex_calendar_events", () => {
       },
     ]);
 
-    const tool = findTool("yandex_calendar_events");
+    const tool = findTool("yad_calendar_events");
     const result = await tool.execute("id", {});
     const events = JSON.parse(result.content[0].text);
 
@@ -81,7 +81,7 @@ describe("yandex_calendar_events", () => {
   it("uses provided calendar URL", async () => {
     mockFetchCalendarObjects.mockResolvedValue([]);
 
-    const tool = findTool("yandex_calendar_events");
+    const tool = findTool("yad_calendar_events");
     await tool.execute("id", { calendar_url: "/cal/custom/" });
 
     expect(mockFetchCalendarObjects).toHaveBeenCalledWith(
@@ -94,7 +94,7 @@ describe("yandex_calendar_events", () => {
   it("passes time range when both start and end given", async () => {
     mockFetchCalendarObjects.mockResolvedValue([]);
 
-    const tool = findTool("yandex_calendar_events");
+    const tool = findTool("yad_calendar_events");
     await tool.execute("id", {
       calendar_url: "/cal/1/",
       start: "2026-04-01T00:00:00Z",
@@ -111,17 +111,17 @@ describe("yandex_calendar_events", () => {
   it("throws when no calendars found", async () => {
     mockFetchCalendars.mockResolvedValue([]);
 
-    const tool = findTool("yandex_calendar_events");
+    const tool = findTool("yad_calendar_events");
     await expect(tool.execute("id", {})).rejects.toThrow("No calendars found");
   });
 });
 
-describe("yandex_calendar_create_event", () => {
+describe("yad_calendar_create_event", () => {
   it("creates event with iCal format", async () => {
     mockFetchCalendars.mockResolvedValue([{ url: "/cal/1/" }]);
     mockCreateCalendarObject.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_calendar_create_event");
+    const tool = findTool("yad_calendar_create_event");
     const result = await tool.execute("id", {
       summary: "Lunch",
       start: "2026-04-10T12:00:00",
@@ -140,7 +140,7 @@ describe("yandex_calendar_create_event", () => {
   });
 });
 
-describe("yandex_calendar_update_event", () => {
+describe("yad_calendar_update_event", () => {
   it("fetches existing event and updates fields", async () => {
     mockFetchCalendarObjects.mockResolvedValue([
       {
@@ -151,7 +151,7 @@ describe("yandex_calendar_update_event", () => {
     ]);
     mockUpdateCalendarObject.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_calendar_update_event");
+    const tool = findTool("yad_calendar_update_event");
     const result = await tool.execute("id", {
       event_url: "/cal/1/evt-1.ics",
       summary: "New title",
@@ -167,18 +167,18 @@ describe("yandex_calendar_update_event", () => {
   it("throws when event not found", async () => {
     mockFetchCalendarObjects.mockResolvedValue([]);
 
-    const tool = findTool("yandex_calendar_update_event");
+    const tool = findTool("yad_calendar_update_event");
     await expect(
       tool.execute("id", { event_url: "/cal/1/missing.ics", summary: "X" }),
     ).rejects.toThrow("Event not found");
   });
 });
 
-describe("yandex_calendar_delete_event", () => {
+describe("yad_calendar_delete_event", () => {
   it("deletes event by URL", async () => {
     mockDeleteCalendarObject.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_calendar_delete_event");
+    const tool = findTool("yad_calendar_delete_event");
     await tool.execute("id", { event_url: "/cal/1/evt-1.ics" });
 
     expect(mockDeleteCalendarObject).toHaveBeenCalledWith({

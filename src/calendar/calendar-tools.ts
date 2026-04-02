@@ -19,7 +19,7 @@ async function createCalDavClient(config: YandexPluginConfig) {
 export function createCalendarTools(config: YandexPluginConfig) {
   return [
     {
-      name: "yandex_calendar_list",
+      name: "yad_calendar_list",
       description: "List all calendars in the user's Yandex.Calendar account.",
       parameters: Type.Object({}, { additionalProperties: false }),
       async execute() {
@@ -36,7 +36,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_calendar_events",
+      name: "yad_calendar_events",
       description:
         "List events from a Yandex Calendar within an optional date range. " +
         "If no calendar URL is given, events from the default calendar are returned.",
@@ -45,7 +45,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
           calendar_url: Type.Optional(
             Type.String({
               description:
-                "Calendar URL from yandex_calendar_list. If omitted, uses the first calendar.",
+                "Calendar URL from yad_calendar_list. If omitted, uses the first calendar.",
             }),
           ),
           start: Type.Optional(
@@ -89,7 +89,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_calendar_create_event",
+      name: "yad_calendar_create_event",
       description:
         "Create a new event in Yandex Calendar. " + "Specify at least a title and start time.",
       parameters: Type.Object(
@@ -161,13 +161,13 @@ export function createCalendarTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_calendar_update_event",
+      name: "yad_calendar_update_event",
       description:
         "Update an existing event in Yandex Calendar. " +
-        "Requires the event URL (from yandex_calendar_events) and the fields to update.",
+        "Requires the event URL (from yad_calendar_events) and the fields to update.",
       parameters: Type.Object(
         {
-          event_url: Type.String({ description: "Event URL from yandex_calendar_events" }),
+          event_url: Type.String({ description: "Event URL from yad_calendar_events" }),
           summary: Type.Optional(Type.String({ description: "New title" })),
           start: Type.Optional(Type.String({ description: "New start date/time (ISO 8601)" })),
           end: Type.Optional(Type.String({ description: "New end date/time (ISO 8601)" })),
@@ -236,11 +236,11 @@ export function createCalendarTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_calendar_delete_event",
+      name: "yad_calendar_delete_event",
       description: "Delete an event from Yandex Calendar by its URL.",
       parameters: Type.Object(
         {
-          event_url: Type.String({ description: "Event URL from yandex_calendar_events" }),
+          event_url: Type.String({ description: "Event URL from yad_calendar_events" }),
         },
         { additionalProperties: false },
       ),

@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("yandex_mail_list", () => {
+describe("yad_mail_list", () => {
   it("connects, fetches messages, and disconnects", async () => {
     // mockFetch returns an async iterable
     const messages = [
@@ -92,7 +92,7 @@ describe("yandex_mail_list", () => {
       })(),
     );
 
-    const tool = findTool("yandex_mail_list");
+    const tool = findTool("yad_mail_list");
     const result = await tool.execute("id", { folder: "INBOX", limit: 20 });
     const data = JSON.parse(result.content[0].text);
 
@@ -108,7 +108,7 @@ describe("yandex_mail_list", () => {
   });
 });
 
-describe("yandex_mail_read", () => {
+describe("yad_mail_read", () => {
   it("fetches and parses a specific message", async () => {
     mockFetchOne.mockResolvedValue({
       source: Buffer.from("raw email content"),
@@ -124,7 +124,7 @@ describe("yandex_mail_read", () => {
       attachments: [],
     } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
 
-    const tool = findTool("yandex_mail_read");
+    const tool = findTool("yad_mail_read");
     const result = await tool.execute("id", { uid: 105 });
     const data = JSON.parse(result.content[0].text);
 
@@ -136,16 +136,16 @@ describe("yandex_mail_read", () => {
   it("throws when message not found", async () => {
     mockFetchOne.mockResolvedValue({ source: null });
 
-    const tool = findTool("yandex_mail_read");
+    const tool = findTool("yad_mail_read");
     await expect(tool.execute("id", { uid: 999 })).rejects.toThrow("Message UID 999 not found");
   });
 });
 
-describe("yandex_mail_send", () => {
+describe("yad_mail_send", () => {
   it("sends email via SMTP", async () => {
     mockSendMail.mockResolvedValue({ messageId: "<test-id@yandex.ru>" });
 
-    const tool = findTool("yandex_mail_send");
+    const tool = findTool("yad_mail_send");
     const result = await tool.execute("id", {
       to: "recipient@example.com",
       subject: "Test",
@@ -164,7 +164,7 @@ describe("yandex_mail_send", () => {
   });
 });
 
-describe("yandex_mail_search", () => {
+describe("yad_mail_search", () => {
   it("searches and returns matching messages", async () => {
     mockSearch.mockResolvedValue([101, 103, 105]);
     mockFetch.mockReturnValue(
@@ -199,7 +199,7 @@ describe("yandex_mail_search", () => {
       })(),
     );
 
-    const tool = findTool("yandex_mail_search");
+    const tool = findTool("yad_mail_search");
     const result = await tool.execute("id", { from: "alice@test.com" });
     const data = JSON.parse(result.content[0].text);
 
@@ -211,7 +211,7 @@ describe("yandex_mail_search", () => {
     mockSearch.mockResolvedValue([]);
     mockFetch.mockReturnValue((async function* () {})());
 
-    const tool = findTool("yandex_mail_search");
+    const tool = findTool("yad_mail_search");
     const result = await tool.execute("id", { subject: "nonexistent" });
     const data = JSON.parse(result.content[0].text);
 

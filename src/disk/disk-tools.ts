@@ -21,7 +21,7 @@ export function createDiskTools(config: YandexPluginConfig) {
 
   return [
     {
-      name: "yandex_disk_list",
+      name: "yad_disk_list",
       description:
         "List files and folders in Yandex.Disk at a given path. " +
         "Returns name, type (file/folder), size, and last modified date.",
@@ -49,7 +49,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_info",
+      name: "yad_disk_info",
       description: "Get properties of a specific file or folder in Yandex.Disk.",
       parameters: Type.Object(
         {
@@ -72,7 +72,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_download",
+      name: "yad_disk_download",
       description:
         "Download a file from Yandex.Disk. Returns the file content as text " +
         "(for text files) or base64 (for binary files).",
@@ -93,7 +93,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_upload",
+      name: "yad_disk_upload",
       description: "Upload a text file to Yandex.Disk.",
       parameters: Type.Object(
         {
@@ -119,7 +119,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_mkdir",
+      name: "yad_disk_mkdir",
       description: "Create a folder in Yandex.Disk.",
       parameters: Type.Object(
         {
@@ -133,7 +133,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_delete",
+      name: "yad_disk_delete",
       description: "Delete a file or folder in Yandex.Disk. Folders are deleted recursively.",
       parameters: Type.Object(
         {
@@ -147,7 +147,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_move",
+      name: "yad_disk_move",
       description: "Move or rename a file/folder in Yandex.Disk.",
       parameters: Type.Object(
         {
@@ -165,7 +165,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_copy",
+      name: "yad_disk_copy",
       description: "Copy a file or folder in Yandex.Disk.",
       parameters: Type.Object(
         {
@@ -183,7 +183,7 @@ export function createDiskTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_disk_publish",
+      name: "yad_disk_publish",
       description:
         "Publish a file or folder in Yandex.Disk and get a public link, " +
         "or unpublish it to remove public access.",

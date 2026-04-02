@@ -8,8 +8,8 @@ import { createDiskTools } from "./src/disk/disk-tools.js";
 import { createMailTools } from "./src/mail/mail-tools.js";
 
 export default definePluginEntry({
-  id: "yandex",
-  name: "Yandex Services",
+  id: "yad",
+  name: "Yad",
   description:
     "Integration with Yandex Mail (IMAP/SMTP), Calendar (CalDAV), " +
     "Disk (WebDAV), and Contacts (CardDAV). " +

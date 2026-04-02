@@ -16,7 +16,7 @@ export function createContactsTools(config: YandexPluginConfig) {
 
   return [
     {
-      name: "yandex_contacts_list",
+      name: "yad_contacts_list",
       description:
         "List all contacts from Yandex.Contacts address book. " +
         "Returns name, phones, emails for each contact.",
@@ -34,11 +34,11 @@ export function createContactsTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_contacts_get",
+      name: "yad_contacts_get",
       description: "Get a specific contact by href from Yandex.Contacts.",
       parameters: Type.Object(
         {
-          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yad_contacts_list" }),
         },
         { additionalProperties: false },
       ),
@@ -48,7 +48,7 @@ export function createContactsTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_contacts_create",
+      name: "yad_contacts_create",
       description: "Create a new contact in Yandex.Contacts.",
       parameters: Type.Object(
         {
@@ -100,13 +100,13 @@ export function createContactsTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_contacts_update",
+      name: "yad_contacts_update",
       description:
         "Update an existing contact in Yandex.Contacts. " +
-        "Requires the contact href from yandex_contacts_list.",
+        "Requires the contact href from yad_contacts_list.",
       parameters: Type.Object(
         {
-          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yad_contacts_list" }),
           full_name: Type.Optional(Type.String({ description: "New full name" })),
           last_name: Type.Optional(Type.String({ description: "New last name" })),
           first_name: Type.Optional(Type.String({ description: "New first name" })),
@@ -165,11 +165,11 @@ export function createContactsTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_contacts_delete",
+      name: "yad_contacts_delete",
       description: "Delete a contact from Yandex.Contacts.",
       parameters: Type.Object(
         {
-          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yad_contacts_list" }),
         },
         { additionalProperties: false },
       ),

@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("yandex_contacts_list", () => {
+describe("yad_contacts_list", () => {
   it("returns parsed contacts", async () => {
     mockFetchAllContacts.mockResolvedValue([
       {
@@ -43,7 +43,7 @@ describe("yandex_contacts_list", () => {
       },
     ]);
 
-    const tool = findTool("yandex_contacts_list");
+    const tool = findTool("yad_contacts_list");
     const result = await tool.execute();
     const data = JSON.parse(result.content[0].text);
 
@@ -56,7 +56,7 @@ describe("yandex_contacts_list", () => {
   it("returns empty when no contacts", async () => {
     mockFetchAllContacts.mockResolvedValue([]);
 
-    const tool = findTool("yandex_contacts_list");
+    const tool = findTool("yad_contacts_list");
     const result = await tool.execute();
     const data = JSON.parse(result.content[0].text);
 
@@ -65,11 +65,11 @@ describe("yandex_contacts_list", () => {
   });
 });
 
-describe("yandex_contacts_get", () => {
+describe("yad_contacts_get", () => {
   it("returns a specific contact", async () => {
     mockGetContact.mockResolvedValue("BEGIN:VCARD\nFN:Alice\nUID:a-1\nEND:VCARD");
 
-    const tool = findTool("yandex_contacts_get");
+    const tool = findTool("yad_contacts_get");
     const result = await tool.execute("id", { href: "/addressbook/user@yandex.ru/1/a-1.vcf" });
     const data = JSON.parse(result.content[0].text);
 
@@ -77,11 +77,11 @@ describe("yandex_contacts_get", () => {
   });
 });
 
-describe("yandex_contacts_create", () => {
+describe("yad_contacts_create", () => {
   it("creates a vCard with all fields", async () => {
     mockPutContact.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_contacts_create");
+    const tool = findTool("yad_contacts_create");
     const result = await tool.execute("id", {
       full_name: "Мария Иванова",
       first_name: "Мария",
@@ -104,7 +104,7 @@ describe("yandex_contacts_create", () => {
   it("creates minimal contact with only name", async () => {
     mockPutContact.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_contacts_create");
+    const tool = findTool("yad_contacts_create");
     await tool.execute("id", { full_name: "Minimal" });
 
     const vcard = mockPutContact.mock.calls[0][2];
@@ -114,14 +114,14 @@ describe("yandex_contacts_create", () => {
   });
 });
 
-describe("yandex_contacts_update", () => {
+describe("yad_contacts_update", () => {
   it("updates existing contact fields", async () => {
     mockGetContact.mockResolvedValue(
       "BEGIN:VCARD\nVERSION:3.0\nFN:Old Name\nUID:u-1\nTEL;TYPE=CELL:+70001112233\nEND:VCARD",
     );
     mockPutContact.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_contacts_update");
+    const tool = findTool("yad_contacts_update");
     const result = await tool.execute("id", {
       href: "/addressbook/user@yandex.ru/1/u-1.vcf",
       full_name: "New Name",
@@ -136,11 +136,11 @@ describe("yandex_contacts_update", () => {
   });
 });
 
-describe("yandex_contacts_delete", () => {
+describe("yad_contacts_delete", () => {
   it("deletes contact by href", async () => {
     mockDeleteContact.mockResolvedValue(undefined);
 
-    const tool = findTool("yandex_contacts_delete");
+    const tool = findTool("yad_contacts_delete");
     await tool.execute("id", { href: "/addressbook/user@yandex.ru/1/c-1.vcf" });
 
     expect(mockDeleteContact).toHaveBeenCalledWith(

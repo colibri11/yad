@@ -1,6 +1,6 @@
 {
-  "name": "@openclaw/yandex",
-  "version": "0.2.0",
+  "name": "yad",
+  "version": "0.3.0",
   "description": "OpenClaw plugin for Yandex services: Mail, Calendar, Disk, Contacts",
   "type": "module",
   "openclaw": {

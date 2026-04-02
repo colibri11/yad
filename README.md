@@ -1,4 +1,4 @@
-# @openclaw/yandex
+# Yad
 
 Плагин для [OpenClaw](https://github.com/openclaw/openclaw), подключающий сервисы Яндекса: Почту, Календарь, Диск и Контакты.
 
@@ -16,7 +16,7 @@
 ## Установка
 
 ```bash
-openclaw plugins install @openclaw/yandex
+openclaw plugins install github:colibri11/yad
 ```
 
 Для локальной разработки:
@@ -60,44 +60,44 @@ openclaw plugins install -l .
 
 | Инструмент | Описание |
 |------------|----------|
-| `yandex_disk_list` | Список файлов и папок |
-| `yandex_disk_info` | Свойства файла или папки |
-| `yandex_disk_download` | Скачать файл (текст или base64) |
-| `yandex_disk_upload` | Загрузить текстовый файл |
-| `yandex_disk_mkdir` | Создать папку |
-| `yandex_disk_delete` | Удалить файл или папку |
-| `yandex_disk_move` | Переместить / переименовать |
-| `yandex_disk_copy` | Копировать |
-| `yandex_disk_publish` | Опубликовать / снять публикацию |
+| `yad_disk_list` | Список файлов и папок |
+| `yad_disk_info` | Свойства файла или папки |
+| `yad_disk_download` | Скачать файл (текст или base64) |
+| `yad_disk_upload` | Загрузить текстовый файл |
+| `yad_disk_mkdir` | Создать папку |
+| `yad_disk_delete` | Удалить файл или папку |
+| `yad_disk_move` | Переместить / переименовать |
+| `yad_disk_copy` | Копировать |
+| `yad_disk_publish` | Опубликовать / снять публикацию |
 
 ### Яндекс.Почта (IMAP/SMTP)
 
 | Инструмент | Описание |
 |------------|----------|
-| `yandex_mail_list` | Список писем в папке |
-| `yandex_mail_read` | Прочитать письмо целиком |
-| `yandex_mail_send` | Отправить письмо |
-| `yandex_mail_search` | Поиск писем по отправителю, теме, дате |
+| `yad_mail_list` | Список писем в папке |
+| `yad_mail_read` | Прочитать письмо целиком |
+| `yad_mail_send` | Отправить письмо |
+| `yad_mail_search` | Поиск писем по отправителю, теме, дате |
 
 ### Яндекс.Календарь (CalDAV)
 
 | Инструмент | Описание |
 |------------|----------|
-| `yandex_calendar_list` | Список календарей |
-| `yandex_calendar_events` | Список событий (с фильтрацией по датам) |
-| `yandex_calendar_create_event` | Создать событие |
-| `yandex_calendar_update_event` | Изменить событие |
-| `yandex_calendar_delete_event` | Удалить событие |
+| `yad_calendar_list` | Список календарей |
+| `yad_calendar_events` | Список событий (с фильтрацией по датам) |
+| `yad_calendar_create_event` | Создать событие |
+| `yad_calendar_update_event` | Изменить событие |
+| `yad_calendar_delete_event` | Удалить событие |
 
 ### Яндекс.Контакты (CardDAV)
 
 | Инструмент | Описание |
 |------------|----------|
-| `yandex_contacts_list` | Список контактов |
-| `yandex_contacts_get` | Получить контакт |
-| `yandex_contacts_create` | Создать контакт |
-| `yandex_contacts_update` | Изменить контакт |
-| `yandex_contacts_delete` | Удалить контакт |
+| `yad_contacts_list` | Список контактов |
+| `yad_contacts_get` | Получить контакт |
+| `yad_contacts_create` | Создать контакт |
+| `yad_contacts_update` | Изменить контакт |
+| `yad_contacts_delete` | Удалить контакт |
 
 ## Разработка
 

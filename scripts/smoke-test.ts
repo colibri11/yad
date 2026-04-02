@@ -62,7 +62,7 @@ if (config.disk_app_password) {
   const tools = createDiskTools(config) as Tool[];
 
   await run("list /", async () => {
-    const r = await findTool(tools, "yandex_disk_list").execute("t", { path: "/" });
+    const r = await findTool(tools, "yad_disk_list").execute("t", { path: "/" });
     const items = JSON.parse(r.content[0].text);
     console.log(`    Файлов/папок в корне: ${items.length}`);
   });
@@ -71,17 +71,17 @@ if (config.disk_app_password) {
     const testDir = `/openclaw-test-${Date.now()}`;
     const testFile = `${testDir}/hello.txt`;
 
-    await findTool(tools, "yandex_disk_mkdir").execute("t", { path: testDir });
-    await findTool(tools, "yandex_disk_upload").execute("t", {
+    await findTool(tools, "yad_disk_mkdir").execute("t", { path: testDir });
+    await findTool(tools, "yad_disk_upload").execute("t", {
       path: testFile,
       content: "Hello from OpenClaw smoke test!",
     });
 
-    const r = await findTool(tools, "yandex_disk_download").execute("t", { path: testFile });
+    const r = await findTool(tools, "yad_disk_download").execute("t", { path: testFile });
     const text = r.content[0].text;
     if (!text.includes("Hello from OpenClaw")) throw new Error("Content mismatch");
 
-    await findTool(tools, "yandex_disk_delete").execute("t", { path: testDir });
+    await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
     console.log(`    Создал, загрузил, скачал и удалил ${testFile}`);
   });
 } else {
@@ -96,14 +96,14 @@ if (config.mail_app_password) {
   const tools = createMailTools(config) as Tool[];
 
   await run("list INBOX", async () => {
-    const r = await findTool(tools, "yandex_mail_list").execute("t", { folder: "INBOX", limit: 5 });
+    const r = await findTool(tools, "yad_mail_list").execute("t", { folder: "INBOX", limit: 5 });
     const data = JSON.parse(r.content[0].text);
     console.log(`    Писем в INBOX: ${data.total}, показано: ${data.showing}`);
   });
 
   await run("search recent", async () => {
     const since = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-    const r = await findTool(tools, "yandex_mail_search").execute("t", { since, limit: 3 });
+    const r = await findTool(tools, "yad_mail_search").execute("t", { since, limit: 3 });
     const data = JSON.parse(r.content[0].text);
     console.log(`    Найдено за неделю: ${data.totalMatches}`);
   });
@@ -119,7 +119,7 @@ if (config.calendar_app_password) {
   const tools = createCalendarTools(config) as Tool[];
 
   await run("list calendars", async () => {
-    const r = await findTool(tools, "yandex_calendar_list").execute();
+    const r = await findTool(tools, "yad_calendar_list").execute();
     const cals = JSON.parse(r.content[0].text);
     console.log(`    Календарей: ${cals.length}`);
     for (const c of cals) console.log(`      - ${c.displayName || c.url}`);
@@ -128,7 +128,7 @@ if (config.calendar_app_password) {
   await run("list events (next 30 days)", async () => {
     const start = new Date().toISOString();
     const end = new Date(Date.now() + 30 * 86400000).toISOString();
-    const r = await findTool(tools, "yandex_calendar_events").execute("t", { start, end });
+    const r = await findTool(tools, "yad_calendar_events").execute("t", { start, end });
     const events = JSON.parse(r.content[0].text);
     console.log(`    Событий: ${events.length}`);
   });
@@ -144,7 +144,7 @@ if (config.contacts_app_password) {
   const tools = createContactsTools(config) as Tool[];
 
   await run("list", async () => {
-    const r = await findTool(tools, "yandex_contacts_list").execute("t", {});
+    const r = await findTool(tools, "yad_contacts_list").execute("t", {});
     const data = JSON.parse(r.content[0].text);
     console.log(`    Контактов: ${data.total}`);
   });

@@ -33,7 +33,7 @@ function createSmtpTransport(config: YandexPluginConfig) {
 export function createMailTools(config: YandexPluginConfig) {
   return [
     {
-      name: "yandex_mail_list",
+      name: "yad_mail_list",
       description:
         "List email messages in a Yandex.Mail folder. " +
         "Returns subject, from, date, and flags for each message.",
@@ -96,7 +96,7 @@ export function createMailTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_mail_read",
+      name: "yad_mail_read",
       description:
         "Read a specific email message by sequence number or UID. " +
         "Returns the full message with headers and text/HTML body.",
@@ -151,7 +151,7 @@ export function createMailTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_mail_send",
+      name: "yad_mail_send",
       description: "Send an email via Yandex.Mail SMTP.",
       parameters: Type.Object(
         {
@@ -189,7 +189,7 @@ export function createMailTools(config: YandexPluginConfig) {
       },
     },
     {
-      name: "yandex_mail_search",
+      name: "yad_mail_search",
       description:
         "Search for emails in Yandex.Mail using IMAP search criteria. " +
         "Supports searching by subject, from, since date, etc.",

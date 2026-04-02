@@ -62,7 +62,7 @@ src/
 
 ## Соглашения
 
-- **Имена tool-ов:** `yandex_{сервис}_{действие}` (snake_case)
+- **Имена tool-ов:** `yad_{сервис}_{действие}` (snake_case)
 - **Описания tool-ов и параметров:** на английском (требование OpenClaw SDK)
 - **Параметры:** `Type.Object(...)` из `@sinclair/typebox` с `{ additionalProperties: false }`
 - **Результаты:** через `textResult()` или `jsonResult()` из `src/common/types.ts`
