@@ -1,0 +1,90 @@
+{
+  "id": "yandex",
+  "name": "Yandex Services",
+  "description": "Integration with Yandex Mail, Calendar, Disk and Contacts via app passwords",
+  "contracts": {
+    "tools": [
+      "yandex_disk_list",
+      "yandex_disk_info",
+      "yandex_disk_upload",
+      "yandex_disk_download",
+      "yandex_disk_mkdir",
+      "yandex_disk_delete",
+      "yandex_disk_move",
+      "yandex_disk_copy",
+      "yandex_disk_publish",
+      "yandex_mail_list",
+      "yandex_mail_read",
+      "yandex_mail_send",
+      "yandex_mail_search",
+      "yandex_calendar_list",
+      "yandex_calendar_events",
+      "yandex_calendar_create_event",
+      "yandex_calendar_update_event",
+      "yandex_calendar_delete_event",
+      "yandex_contacts_list",
+      "yandex_contacts_get",
+      "yandex_contacts_create",
+      "yandex_contacts_update",
+      "yandex_contacts_delete"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "login": {
+        "type": "string",
+        "description": "Yandex login (e.g. user or user@yandex.ru)"
+      },
+      "mail_app_password": {
+        "type": ["string", "object"],
+        "description": "App password for Mail (type: 'Почта')"
+      },
+      "calendar_app_password": {
+        "type": ["string", "object"],
+        "description": "App password for Calendar (type: 'Календари')"
+      },
+      "disk_app_password": {
+        "type": ["string", "object"],
+        "description": "App password for Disk (type: 'Файлы')"
+      },
+      "contacts_app_password": {
+        "type": ["string", "object"],
+        "description": "App password for Contacts (type: 'Контакты')"
+      }
+    },
+    "required": ["login"]
+  },
+  "uiHints": {
+    "login": {
+      "label": "Yandex Login",
+      "help": "Your Yandex username or full email (e.g. user@yandex.ru)",
+      "placeholder": "user@yandex.ru"
+    },
+    "mail_app_password": {
+      "label": "Mail App Password",
+      "help": "Create at id.yandex.ru/security/app-passwords, type 'Почта'",
+      "sensitive": true,
+      "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    },
+    "calendar_app_password": {
+      "label": "Calendar App Password",
+      "help": "Create at id.yandex.ru/security/app-passwords, type 'Календари'",
+      "sensitive": true,
+      "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    },
+    "disk_app_password": {
+      "label": "Disk App Password",
+      "help": "Create at id.yandex.ru/security/app-passwords, type 'Файлы'",
+      "sensitive": true,
+      "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    },
+    "contacts_app_password": {
+      "label": "Contacts App Password",
+      "help": "Create at id.yandex.ru/security/app-passwords, type 'Контакты'",
+      "sensitive": true,
+      "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    }
+  }
+}
