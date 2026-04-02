@@ -162,7 +162,9 @@ export function createMailTools(config: YandexPluginConfig) {
     },
     {
       name: "yad_mail_send",
-      description: "Send an email via Yandex.Mail SMTP.",
+      description:
+        "Send an email via Yandex.Mail SMTP. " +
+        "Supports file attachments by path or inline content.",
       parameters: Type.Object(
         {
           to: Type.String({ description: "Recipient email address(es), comma-separated" }),
@@ -171,6 +173,27 @@ export function createMailTools(config: YandexPluginConfig) {
           html: Type.Optional(Type.String({ description: "HTML body" })),
           cc: Type.Optional(Type.String({ description: "CC recipients" })),
           bcc: Type.Optional(Type.String({ description: "BCC recipients" })),
+          attachments: Type.Optional(
+            Type.Array(
+              Type.Object(
+                {
+                  filename: Type.String({ description: "Attachment filename (e.g. report.pdf)" }),
+                  path: Type.Optional(
+                    Type.String({
+                      description: "Absolute path to a local file to attach",
+                    }),
+                  ),
+                  content: Type.Optional(
+                    Type.String({
+                      description: "Text content of the attachment (for .txt, .md, .csv, etc.)",
+                    }),
+                  ),
+                },
+                { additionalProperties: false },
+              ),
+              { description: "File attachments. Provide either path or content for each." },
+            ),
+          ),
         },
         { additionalProperties: false },
       ),
@@ -183,9 +206,15 @@ export function createMailTools(config: YandexPluginConfig) {
           html?: string;
           cc?: string;
           bcc?: string;
+          attachments?: Array<{ filename: string; path?: string; content?: string }>;
         },
       ) {
         const transport = createSmtpTransport(config);
+        const mailAttachments = params.attachments?.map((a) => ({
+          filename: a.filename,
+          ...(a.path ? { path: a.path } : {}),
+          ...(a.content ? { content: a.content } : {}),
+        }));
         const info = await transport.sendMail({
           from: resolveLogin(config.login),
           to: params.to,
@@ -194,6 +223,7 @@ export function createMailTools(config: YandexPluginConfig) {
           html: params.html,
           cc: params.cc,
           bcc: params.bcc,
+          attachments: mailAttachments,
         });
         return textResult(`Email sent. Message ID: ${info.messageId}`);
       },

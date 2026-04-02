@@ -133,7 +133,9 @@ describe("yad_calendar_create_event", () => {
     const call = mockCreateCalendarObject.mock.calls[0][0];
     expect(call.iCalString).toContain("SUMMARY:Lunch");
     expect(call.iCalString).toContain("LOCATION:Cafe");
-    expect(call.iCalString).toContain("DTSTART:20260410T120000");
+    expect(call.iCalString).toContain("DTSTART;VALUE=DATE-TIME:20260410T120000Z");
+    expect(call.iCalString).toContain("DTSTAMP:");
+    expect(call.iCalString).toContain("SEQUENCE:0");
     expect(call.filename).toMatch(/\.ics$/);
 
     expect(result.content[0].text).toContain("Lunch");

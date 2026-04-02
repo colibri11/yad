@@ -88,8 +88,11 @@ export function createContactsTools(config: YandexPluginConfig) {
         if (!lastName && !firstName) {
           const parts = params.full_name.trim().split(/\s+/);
           if (parts.length >= 2) {
-            lastName = parts[0];
-            firstName = parts.slice(1).join(" ");
+            // Last word → family name, rest → given name
+            // "OpenClaw Yad Retest" → first="OpenClaw Yad", last="Retest"
+            // Yandex reconstructs FN as "first last" → "OpenClaw Yad Retest"
+            lastName = parts[parts.length - 1];
+            firstName = parts.slice(0, -1).join(" ");
           } else {
             firstName = parts[0] || "";
           }

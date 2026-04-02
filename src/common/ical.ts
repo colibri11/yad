@@ -47,11 +47,12 @@ export function formatDT(iso: string): string {
 
 /**
  * Build DTSTART/DTEND line with proper timezone handling.
- * - ISO with Z → UTC (append Z)
+ * Uses VALUE=DATE-TIME explicitly for Yandex CalDAV compatibility.
+ * - ISO with Z → UTC
  * - ISO without Z → treat as UTC (append Z) for safety
  */
 export function dtLine(prop: "DTSTART" | "DTEND", iso: string): string {
   const basic = formatDT(iso);
-  if (basic.endsWith("Z")) return `${prop}:${basic}`;
-  return `${prop}:${basic}Z`;
+  const value = basic.endsWith("Z") ? basic : `${basic}Z`;
+  return `${prop};VALUE=DATE-TIME:${value}`;
 }

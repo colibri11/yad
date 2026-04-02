@@ -132,24 +132,27 @@ export function createCalendarTools(config: YandexPluginConfig) {
         }
 
         const uid = crypto.randomUUID();
+        const dtstamp = formatDT(new Date().toISOString());
 
-        const ical = [
-          "BEGIN:VCALENDAR",
-          "VERSION:2.0",
-          "PRODID:-//OpenClaw Yandex Plugin//EN",
-          "BEGIN:VEVENT",
-          `UID:${uid}`,
-          dtLine("DTSTART", params.start),
-          dtLine("DTEND", params.end),
-          `SUMMARY:${params.summary}`,
-          params.description ? `DESCRIPTION:${params.description}` : "",
-          params.location ? `LOCATION:${params.location}` : "",
-          `DTSTAMP:${formatDT(new Date().toISOString())}`,
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ]
-          .filter(Boolean)
-          .join("\r\n");
+        const ical =
+          [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//OpenClaw Yandex Plugin//EN",
+            "BEGIN:VEVENT",
+            `DTSTAMP:${dtstamp}`,
+            `UID:${uid}`,
+            dtLine("DTSTART", params.start),
+            dtLine("DTEND", params.end),
+            `SUMMARY:${params.summary}`,
+            params.description ? `DESCRIPTION:${params.description}` : "",
+            params.location ? `LOCATION:${params.location}` : "",
+            "SEQUENCE:0",
+            "END:VEVENT",
+            "END:VCALENDAR",
+          ]
+            .filter(Boolean)
+            .join("\r\n") + "\r\n";
 
         await client.createCalendarObject({
           calendar,
@@ -201,28 +204,31 @@ export function createCalendarTools(config: YandexPluginConfig) {
 
         const current = parseVEvent(existing.data);
         const uid = current.uid || crypto.randomUUID();
+        const dtstamp = formatDT(new Date().toISOString());
 
-        const ical = [
-          "BEGIN:VCALENDAR",
-          "VERSION:2.0",
-          "PRODID:-//OpenClaw Yandex Plugin//EN",
-          "BEGIN:VEVENT",
-          `UID:${uid}`,
-          dtLine("DTSTART", params.start || current.dtstart || new Date().toISOString()),
-          dtLine("DTEND", params.end || current.dtend || new Date().toISOString()),
-          `SUMMARY:${params.summary ?? current.summary}`,
-          (params.description ?? current.description)
-            ? `DESCRIPTION:${params.description ?? current.description}`
-            : "",
-          (params.location ?? current.location)
-            ? `LOCATION:${params.location ?? current.location}`
-            : "",
-          `DTSTAMP:${formatDT(new Date().toISOString())}`,
-          "END:VEVENT",
-          "END:VCALENDAR",
-        ]
-          .filter(Boolean)
-          .join("\r\n");
+        const ical =
+          [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//OpenClaw Yandex Plugin//EN",
+            "BEGIN:VEVENT",
+            `DTSTAMP:${dtstamp}`,
+            `UID:${uid}`,
+            dtLine("DTSTART", params.start || current.dtstart || new Date().toISOString()),
+            dtLine("DTEND", params.end || current.dtend || new Date().toISOString()),
+            `SUMMARY:${params.summary ?? current.summary}`,
+            (params.description ?? current.description)
+              ? `DESCRIPTION:${params.description ?? current.description}`
+              : "",
+            (params.location ?? current.location)
+              ? `LOCATION:${params.location ?? current.location}`
+              : "",
+            "SEQUENCE:1",
+            "END:VEVENT",
+            "END:VCALENDAR",
+          ]
+            .filter(Boolean)
+            .join("\r\n") + "\r\n";
 
         await client.updateCalendarObject({
           calendarObject: {

@@ -160,15 +160,19 @@ END:VEVENT`;
 });
 
 describe("dtLine", () => {
-  it("formats UTC time with Z", () => {
-    expect(dtLine("DTSTART", "2026-04-10T14:00:00Z")).toBe("DTSTART:20260410T140000Z");
+  it("formats UTC time with VALUE=DATE-TIME and Z", () => {
+    expect(dtLine("DTSTART", "2026-04-10T14:00:00Z")).toBe(
+      "DTSTART;VALUE=DATE-TIME:20260410T140000Z",
+    );
   });
 
   it("appends Z to non-UTC time for safety", () => {
-    expect(dtLine("DTSTART", "2026-04-10T14:00:00")).toBe("DTSTART:20260410T140000Z");
+    expect(dtLine("DTSTART", "2026-04-10T14:00:00")).toBe(
+      "DTSTART;VALUE=DATE-TIME:20260410T140000Z",
+    );
   });
 
   it("works with DTEND", () => {
-    expect(dtLine("DTEND", "2026-04-10T15:00:00Z")).toBe("DTEND:20260410T150000Z");
+    expect(dtLine("DTEND", "2026-04-10T15:00:00Z")).toBe("DTEND;VALUE=DATE-TIME:20260410T150000Z");
   });
 });

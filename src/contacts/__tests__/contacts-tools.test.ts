@@ -107,7 +107,7 @@ describe("yad_contacts_create", () => {
     expect(result.content[0].text).toContain("Мария Иванова");
   });
 
-  it("creates contact with only full_name — splits into N fields", async () => {
+  it("creates contact with only full_name — splits into N fields preserving order", async () => {
     mockPutContact.mockResolvedValue(undefined);
 
     const tool = findTool("yad_contacts_create");
@@ -115,8 +115,9 @@ describe("yad_contacts_create", () => {
 
     const vcard = mockPutContact.mock.calls[0][2];
     expect(vcard).toContain("FN:OpenClaw Yad Test");
-    // full_name split: first word → last name, rest → first name
-    expect(vcard).toContain("N:OpenClaw;Yad Test;;;");
+    // Last word → family name, rest → given name
+    // Yandex reconstructs FN as "first last" → "OpenClaw Yad Test"
+    expect(vcard).toContain("N:Test;OpenClaw Yad;;;");
     expect(vcard).not.toContain("N:;;;;");
   });
 

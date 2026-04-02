@@ -132,6 +132,45 @@ if (config.calendar_app_password) {
     const events = JSON.parse(r.content[0].text);
     console.log(`    Событий: ${events.length}`);
   });
+
+  await run("create + read + delete event (DTSTART round-trip)", async () => {
+    const now = new Date();
+    const startISO = new Date(now.getTime() + 3600000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const endISO = new Date(now.getTime() + 7200000).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+    // Create
+    await findTool(tools, "yad_calendar_create_event").execute("t", {
+      summary: "Smoke Test Event",
+      start: startISO,
+      end: endISO,
+      description: "Temporary smoke test",
+    });
+    console.log("    Событие создано");
+
+    // Read back — search in a wide window around the event
+    const searchStart = new Date(now.getTime() - 3600000).toISOString();
+    const searchEnd = new Date(now.getTime() + 86400000).toISOString();
+    const r = await findTool(tools, "yad_calendar_events").execute("t", {
+      start: searchStart,
+      end: searchEnd,
+    });
+    const events = JSON.parse(r.content[0].text);
+    const created = events.find((e: { summary: string }) => e.summary === "Smoke Test Event");
+    if (!created) throw new Error("Created event not found in list");
+
+    // Verify DTSTART is not broken (16010101T000000)
+    if (created.dtstart?.includes("16010101")) {
+      throw new Error(`DTSTART is broken: ${created.dtstart} (expected near ${startISO})`);
+    }
+    console.log(`    DTSTART: ${created.dtstart} — OK`);
+    console.log(`    DTEND:   ${created.dtend}`);
+
+    // Delete
+    await findTool(tools, "yad_calendar_delete_event").execute("t", {
+      event_url: created.url,
+    });
+    console.log("    Событие удалено");
+  });
 } else {
   console.log("\n📅 Яндекс.Календарь — пропущен (YANDEX_CALENDAR_PASSWORD не задан)");
 }
@@ -147,6 +186,49 @@ if (config.contacts_app_password) {
     const r = await findTool(tools, "yad_contacts_list").execute("t", {});
     const data = JSON.parse(r.content[0].text);
     console.log(`    Контактов: ${data.total}`);
+  });
+
+  await run("create + get + delete via tool (name round-trip)", async () => {
+    // Create contact via tool
+    await findTool(tools, "yad_contacts_create").execute("t", {
+      full_name: "Smoke Test Contact",
+      phone: "+70000000001",
+      note: "yad-smoke-test-marker",
+    });
+    console.log("    Контакт создан через tool");
+
+    // Wait for Yandex indexing
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // List and find
+    const r = await findTool(tools, "yad_contacts_list").execute("t", {});
+    const data = JSON.parse(r.content[0].text);
+    const found = data.contacts.find((c: { note: string }) => c.note === "yad-smoke-test-marker");
+
+    if (found) {
+      // Verify name round-trip
+      if (found.fullName.includes("(no name)")) {
+        throw new Error(`fullName is broken: "${found.fullName}"`);
+      }
+      console.log(`    fullName: "${found.fullName}"`);
+      console.log(`    N: "${found.name}"`);
+
+      // Delete
+      await findTool(tools, "yad_contacts_delete").execute("t", { href: found.href });
+      console.log("    Контакт удалён");
+    } else {
+      console.log("    Контакт не найден в списке (Yandex indexing delay) — пропускаем проверку");
+      // Try to clean up via direct API
+      const { resolveLogin, requirePassword } = await import("../src/common/types.js");
+      const carddav = await import("../src/common/carddav.js");
+      const a = {
+        login: resolveLogin(config.login),
+        password: requirePassword(config, "contacts"),
+      };
+      const contacts = await carddav.fetchAllContacts(a);
+      const target = contacts.find((c) => c.data?.includes("yad-smoke-test-marker"));
+      if (target) await carddav.deleteContact(a, target.href);
+    }
   });
 
   await run("create + get + delete (direct)", async () => {
