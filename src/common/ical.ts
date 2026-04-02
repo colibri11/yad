@@ -15,12 +15,18 @@ function extractValue(line: string): string {
   return colonIdx >= 0 ? line.substring(colonIdx + 1).trim() : line.trim();
 }
 
-/** Extract basic event info from iCalendar text */
+/** Extract basic event info from iCalendar text.
+ *  Parses only inside BEGIN:VEVENT...END:VEVENT to avoid
+ *  picking up properties from VTIMEZONE or other components. */
 export function parseVEvent(ical: string) {
   const unfolded = unfold(ical);
+  // Extract VEVENT block only
+  const veventMatch = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/.exec(unfolded);
+  const vevent = veventMatch ? veventMatch[1] : unfolded;
+
   const get = (key: string): string | undefined => {
     const re = new RegExp(`^${key}[;:](.*)$`, "m");
-    const m = re.exec(unfolded);
+    const m = re.exec(vevent);
     if (!m) return undefined;
     return extractValue(m[1]);
   };

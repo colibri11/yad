@@ -4,16 +4,56 @@ import { dtLine, formatDT, parseVEvent } from "../common/ical.js";
 import type { YandexPluginConfig } from "../common/types.js";
 import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
 
+const CALDAV_BASE = "https://caldav.yandex.ru";
+const TIMEOUT_MS = 30_000;
+
+interface CalDavAuth {
+  login: string;
+  password: string;
+}
+
+function calAuth(config: YandexPluginConfig): CalDavAuth {
+  return {
+    login: resolveLogin(config.login),
+    password: requirePassword(config, "calendar"),
+  };
+}
+
+function authHeader(auth: CalDavAuth): string {
+  return `Basic ${Buffer.from(`${auth.login}:${auth.password}`).toString("base64")}`;
+}
+
 async function createCalDavClient(config: YandexPluginConfig) {
+  const auth = calAuth(config);
   return createDAVClient({
-    serverUrl: "https://caldav.yandex.ru",
-    credentials: {
-      username: resolveLogin(config.login),
-      password: requirePassword(config, "calendar"),
-    },
+    serverUrl: CALDAV_BASE,
+    credentials: { username: auth.login, password: auth.password },
     authMethod: "Basic",
     defaultAccountType: "caldav",
   });
+}
+
+/** PUT iCal directly to CalDAV — bypasses tsdav to avoid iCal mangling */
+async function putCalendarObject(
+  auth: CalDavAuth,
+  calendarUrl: string,
+  filename: string,
+  ical: string,
+): Promise<void> {
+  const url = `${calendarUrl}${filename}`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: authHeader(auth),
+      "Content-Type": "text/calendar; charset=utf-8",
+      "If-None-Match": "*",
+    },
+    body: ical,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok && res.status !== 201) {
+    throw new Error(`CalDAV PUT ${filename} failed: ${res.status} ${res.statusText}`);
+  }
 }
 
 export function createCalendarTools(config: YandexPluginConfig) {
@@ -120,15 +160,16 @@ export function createCalendarTools(config: YandexPluginConfig) {
           calendar_url?: string;
         },
       ) {
-        const client = await createCalDavClient(config);
-        let calendar: DAVCalendar;
+        const a = calAuth(config);
+        let calendarUrl: string;
 
         if (params.calendar_url) {
-          calendar = { url: params.calendar_url } as DAVCalendar;
+          calendarUrl = params.calendar_url;
         } else {
+          const client = await createCalDavClient(config);
           const calendars = await client.fetchCalendars();
           if (calendars.length === 0) throw new Error("No calendars found");
-          calendar = calendars[0];
+          calendarUrl = calendars[0].url;
         }
 
         const uid = crypto.randomUUID();
@@ -138,7 +179,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
           [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//OpenClaw Yandex Plugin//EN",
+            "PRODID:-//Yad OpenClaw Plugin//EN",
             "BEGIN:VEVENT",
             `DTSTAMP:${dtstamp}`,
             `UID:${uid}`,
@@ -154,11 +195,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
             .filter(Boolean)
             .join("\r\n") + "\r\n";
 
-        await client.createCalendarObject({
-          calendar,
-          filename: `${uid}.ics`,
-          iCalString: ical,
-        });
+        await putCalendarObject(a, calendarUrl, `${uid}.ics`, ical);
 
         return textResult(`Event created: "${params.summary}" (${params.start} — ${params.end})`);
       },
@@ -190,6 +227,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
           location?: string;
         },
       ) {
+        const a = calAuth(config);
         const client = await createCalDavClient(config);
 
         // Fetch current event
@@ -210,7 +248,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
           [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//OpenClaw Yandex Plugin//EN",
+            "PRODID:-//Yad OpenClaw Plugin//EN",
             "BEGIN:VEVENT",
             `DTSTAMP:${dtstamp}`,
             `UID:${uid}`,
@@ -230,13 +268,23 @@ export function createCalendarTools(config: YandexPluginConfig) {
             .filter(Boolean)
             .join("\r\n") + "\r\n";
 
-        await client.updateCalendarObject({
-          calendarObject: {
-            url: params.event_url,
-            data: ical,
-            etag: existing.etag,
+        // Direct PUT — bypass tsdav to avoid iCal mangling
+        const eventUrl = params.event_url.startsWith("http")
+          ? params.event_url
+          : `${CALDAV_BASE}${params.event_url}`;
+        const res = await fetch(eventUrl, {
+          method: "PUT",
+          headers: {
+            Authorization: authHeader(a),
+            "Content-Type": "text/calendar; charset=utf-8",
+            ...(existing.etag ? { "If-Match": existing.etag } : {}),
           },
+          body: ical,
+          signal: AbortSignal.timeout(TIMEOUT_MS),
         });
+        if (!res.ok) {
+          throw new Error(`CalDAV PUT update failed: ${res.status} ${res.statusText}`);
+        }
 
         return textResult(`Event updated: "${params.summary ?? current.summary}"`);
       },
@@ -251,10 +299,18 @@ export function createCalendarTools(config: YandexPluginConfig) {
         { additionalProperties: false },
       ),
       async execute(_id: string, params: { event_url: string }) {
-        const client = await createCalDavClient(config);
-        await client.deleteCalendarObject({
-          calendarObject: { url: params.event_url, etag: "" },
+        const a = calAuth(config);
+        const url = params.event_url.startsWith("http")
+          ? params.event_url
+          : `${CALDAV_BASE}${params.event_url}`;
+        const res = await fetch(url, {
+          method: "DELETE",
+          headers: { Authorization: authHeader(a) },
+          signal: AbortSignal.timeout(TIMEOUT_MS),
         });
+        if (!res.ok) {
+          throw new Error(`CalDAV DELETE failed: ${res.status} ${res.statusText}`);
+        }
         return textResult(`Event deleted: ${params.event_url}`);
       },
     },

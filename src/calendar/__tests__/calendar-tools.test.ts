@@ -117,9 +117,11 @@ describe("yad_calendar_events", () => {
 });
 
 describe("yad_calendar_create_event", () => {
-  it("creates event with iCal format", async () => {
-    mockFetchCalendars.mockResolvedValue([{ url: "/cal/1/" }]);
-    mockCreateCalendarObject.mockResolvedValue(undefined);
+  it("creates event via direct PUT with correct iCal", async () => {
+    mockFetchCalendars.mockResolvedValue([{ url: "https://caldav.yandex.ru/cal/1/" }]);
+    // Mock global fetch for direct PUT
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 201 });
+    vi.stubGlobal("fetch", mockFetch);
 
     const tool = findTool("yad_calendar_create_event");
     const result = await tool.execute("id", {
@@ -129,29 +131,39 @@ describe("yad_calendar_create_event", () => {
       location: "Cafe",
     });
 
-    expect(mockCreateCalendarObject).toHaveBeenCalledOnce();
-    const call = mockCreateCalendarObject.mock.calls[0][0];
-    expect(call.iCalString).toContain("SUMMARY:Lunch");
-    expect(call.iCalString).toContain("LOCATION:Cafe");
-    expect(call.iCalString).toContain("DTSTART;VALUE=DATE-TIME:20260410T120000Z");
-    expect(call.iCalString).toContain("DTSTAMP:");
-    expect(call.iCalString).toContain("SEQUENCE:0");
-    expect(call.filename).toMatch(/\.ics$/);
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toMatch(/^https:\/\/caldav\.yandex\.ru\/cal\/1\/.*\.ics$/);
+    expect(opts.method).toBe("PUT");
+    expect(opts.headers["Content-Type"]).toBe("text/calendar; charset=utf-8");
+
+    const body = opts.body as string;
+    expect(body).toContain("SUMMARY:Lunch");
+    expect(body).toContain("LOCATION:Cafe");
+    expect(body).toContain("DTSTART;VALUE=DATE-TIME:20260410T120000Z");
+    expect(body).toContain("DTEND;VALUE=DATE-TIME:20260410T130000Z");
+    expect(body).toContain("DTSTAMP:");
+    expect(body).toContain("SEQUENCE:0");
+    expect(body).toContain("BEGIN:VCALENDAR");
+    expect(body).toContain("END:VCALENDAR");
 
     expect(result.content[0].text).toContain("Lunch");
+
+    vi.unstubAllGlobals();
   });
 });
 
 describe("yad_calendar_update_event", () => {
-  it("fetches existing event and updates fields", async () => {
+  it("fetches existing event and updates via direct PUT", async () => {
     mockFetchCalendarObjects.mockResolvedValue([
       {
         data: `BEGIN:VEVENT\nSUMMARY:Old title\nDTSTART:20260410T140000Z\nDTEND:20260410T150000Z\nUID:evt-1\nEND:VEVENT`,
         url: "/cal/1/evt-1.ics",
-        etag: "etag1",
+        etag: '"etag1"',
       },
     ]);
-    mockUpdateCalendarObject.mockResolvedValue(undefined);
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", mockFetch);
 
     const tool = findTool("yad_calendar_update_event");
     const result = await tool.execute("id", {
@@ -159,11 +171,13 @@ describe("yad_calendar_update_event", () => {
       summary: "New title",
     });
 
-    expect(mockUpdateCalendarObject).toHaveBeenCalledOnce();
-    const call = mockUpdateCalendarObject.mock.calls[0][0];
-    expect(call.calendarObject.data).toContain("SUMMARY:New title");
-    expect(call.calendarObject.data).toContain("UID:evt-1");
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = mockFetch.mock.calls[0][1].body as string;
+    expect(body).toContain("SUMMARY:New title");
+    expect(body).toContain("UID:evt-1");
     expect(result.content[0].text).toContain("New title");
+
+    vi.unstubAllGlobals();
   });
 
   it("throws when event not found", async () => {
@@ -177,14 +191,18 @@ describe("yad_calendar_update_event", () => {
 });
 
 describe("yad_calendar_delete_event", () => {
-  it("deletes event by URL", async () => {
-    mockDeleteCalendarObject.mockResolvedValue(undefined);
+  it("deletes event via direct DELETE", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", mockFetch);
 
     const tool = findTool("yad_calendar_delete_event");
     await tool.execute("id", { event_url: "/cal/1/evt-1.ics" });
 
-    expect(mockDeleteCalendarObject).toHaveBeenCalledWith({
-      calendarObject: { url: "/cal/1/evt-1.ics", etag: "" },
-    });
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://caldav.yandex.ru/cal/1/evt-1.ics");
+    expect(opts.method).toBe("DELETE");
+
+    vi.unstubAllGlobals();
   });
 });

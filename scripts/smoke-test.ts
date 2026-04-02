@@ -147,7 +147,7 @@ if (config.calendar_app_password) {
     });
     console.log("    Событие создано");
 
-    // Read back — search in a wide window around the event
+    // Read back
     const searchStart = new Date(now.getTime() - 3600000).toISOString();
     const searchEnd = new Date(now.getTime() + 86400000).toISOString();
     const r = await findTool(tools, "yad_calendar_events").execute("t", {
@@ -158,7 +158,6 @@ if (config.calendar_app_password) {
     const created = events.find((e: { summary: string }) => e.summary === "Smoke Test Event");
     if (!created) throw new Error("Created event not found in list");
 
-    // Verify DTSTART is not broken (16010101T000000)
     if (created.dtstart?.includes("16010101")) {
       throw new Error(`DTSTART is broken: ${created.dtstart} (expected near ${startISO})`);
     }

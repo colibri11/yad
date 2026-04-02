@@ -99,6 +99,29 @@ END:VEVENT`;
     expect(e.dtstart).toBe("20260402T160500Z");
     expect(e.dtend).toBe("20260402T162000Z");
   });
+
+  it("ignores DTSTART inside VTIMEZONE — parses VEVENT only", () => {
+    const fullIcal = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VTIMEZONE
+TZID:Etc/UTC
+BEGIN:STANDARD
+DTSTART:16010101T000000
+RDATE:16010101T000000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART:20260402T172600Z
+DTEND:20260402T182600Z
+SUMMARY:Real Event
+UID:real-event-1
+END:VEVENT
+END:VCALENDAR`;
+    const e = parseVEvent(fullIcal);
+    expect(e.dtstart).toBe("20260402T172600Z");
+    expect(e.dtend).toBe("20260402T182600Z");
+    expect(e.summary).toBe("Real Event");
+  });
 });
 
 describe("formatDT", () => {
