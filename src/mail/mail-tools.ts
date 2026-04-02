@@ -62,6 +62,16 @@ export function createMailTools(config: YandexPluginConfig) {
             const mailbox = client.mailbox;
             const total =
               mailbox && typeof mailbox === "object" && "exists" in mailbox ? mailbox.exists : 0;
+
+            if (total === 0) {
+              return jsonResult({
+                folder: params.folder || "INBOX",
+                total: 0,
+                showing: 0,
+                messages: [],
+              });
+            }
+
             const limit = params.limit || 20;
             const from = Math.max(1, total - limit + 1);
             const messages: Array<Record<string, unknown>> = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDT, parseVEvent } from "../ical.js";
+import { dtLine, formatDT, parseVEvent, unfold } from "../ical.js";
 
 describe("parseVEvent", () => {
   const sampleEvent = `BEGIN:VCALENDAR
@@ -97,5 +97,55 @@ describe("formatDT", () => {
 
   it("handles date-only input", () => {
     expect(formatDT("2026-04-10")).toBe("20260410");
+  });
+});
+
+describe("unfold", () => {
+  it("joins lines that start with a space", () => {
+    const folded = "DESCRIPTION:Very long text that\r\n continues on the next line";
+    expect(unfold(folded)).toBe("DESCRIPTION:Very long text thatcontinues on the next line");
+  });
+
+  it("joins lines that start with a tab", () => {
+    const folded = "SUMMARY:Start\r\n\tEnd";
+    expect(unfold(folded)).toBe("SUMMARY:StartEnd");
+  });
+
+  it("handles LF-only line endings", () => {
+    const folded = "NOTE:Line one\n continues";
+    expect(unfold(folded)).toBe("NOTE:Line onecontinues");
+  });
+
+  it("leaves non-folded text unchanged", () => {
+    expect(unfold("SUMMARY:Normal text")).toBe("SUMMARY:Normal text");
+  });
+});
+
+describe("parseVEvent with folded lines", () => {
+  it("parses folded DESCRIPTION correctly", () => {
+    const event = `BEGIN:VEVENT
+SUMMARY:Meeting
+DESCRIPTION:This is a very long description that wraps
+ across multiple lines in the iCalendar format
+UID:fold-test
+END:VEVENT`;
+    const e = parseVEvent(event);
+    expect(e.description).toBe(
+      "This is a very long description that wrapsacross multiple lines in the iCalendar format",
+    );
+  });
+});
+
+describe("dtLine", () => {
+  it("formats UTC time with Z", () => {
+    expect(dtLine("DTSTART", "2026-04-10T14:00:00Z")).toBe("DTSTART:20260410T140000Z");
+  });
+
+  it("appends Z to non-UTC time for safety", () => {
+    expect(dtLine("DTSTART", "2026-04-10T14:00:00")).toBe("DTSTART:20260410T140000Z");
+  });
+
+  it("works with DTEND", () => {
+    expect(dtLine("DTEND", "2026-04-10T15:00:00Z")).toBe("DTEND:20260410T150000Z");
   });
 });

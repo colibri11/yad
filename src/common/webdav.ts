@@ -4,6 +4,7 @@
  */
 
 const WEBDAV_BASE = "https://webdav.yandex.ru";
+const TIMEOUT_MS = 30_000;
 
 export interface WebDavAuth {
   login: string;
@@ -17,7 +18,11 @@ function authHeader(auth: WebDavAuth): string {
 
 function fullUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${WEBDAV_BASE}${encodeURI(normalized)}`;
+  const encoded = normalized
+    .split("/")
+    .map((seg) => (seg ? encodeURIComponent(seg) : seg))
+    .join("/");
+  return `${WEBDAV_BASE}${encoded}`;
 }
 
 export interface DavResource {
@@ -73,6 +78,7 @@ export async function propfind(
       Depth: depth,
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok && res.status !== 207) {
     throw new Error(`PROPFIND ${path} failed: ${res.status} ${res.statusText}`);
@@ -89,6 +95,7 @@ export async function download(auth: WebDavAuth, path: string): Promise<Buffer> 
       Authorization: authHeader(auth),
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
@@ -110,6 +117,7 @@ export async function upload(
       "Content-Type": contentType,
     },
     body: typeof body === "string" ? body : new Uint8Array(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`PUT ${path} failed: ${res.status} ${res.statusText}`);
@@ -124,6 +132,7 @@ export async function mkcol(auth: WebDavAuth, path: string): Promise<void> {
       Authorization: authHeader(auth),
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`MKCOL ${path} failed: ${res.status} ${res.statusText}`);
@@ -138,6 +147,7 @@ export async function deleteResource(auth: WebDavAuth, path: string): Promise<vo
       Authorization: authHeader(auth),
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`DELETE ${path} failed: ${res.status} ${res.statusText}`);
@@ -159,6 +169,7 @@ export async function move(
       Overwrite: overwrite ? "T" : "F",
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`MOVE ${from} -> ${to} failed: ${res.status} ${res.statusText}`);
@@ -180,6 +191,7 @@ export async function copy(
       Overwrite: overwrite ? "T" : "F",
       Accept: "*/*",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`COPY ${from} -> ${to} failed: ${res.status} ${res.statusText}`);
@@ -202,6 +214,7 @@ export async function publish(auth: WebDavAuth, path: string): Promise<string> {
       "Content-Type": "application/xml",
     },
     body,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   if (!res.ok && res.status !== 207) {
@@ -229,6 +242,7 @@ export async function unpublish(auth: WebDavAuth, path: string): Promise<void> {
       "Content-Type": "application/xml",
     },
     body,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   if (!res.ok && res.status !== 207) {

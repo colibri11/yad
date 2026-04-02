@@ -11,6 +11,7 @@
  */
 
 const CARDDAV_BASE = "https://carddav.yandex.ru";
+const TIMEOUT_MS = 30_000;
 
 export interface CardDavAuth {
   login: string;
@@ -55,13 +56,14 @@ export async function discoverAddressBooks(
     <d:displayname/>
   </d:prop>
 </d:propfind>`,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok && res.status !== 207) {
     throw new Error(`CardDAV discover failed: ${res.status} ${res.statusText}`);
   }
   const xml = await res.text();
   const books: Array<{ url: string; displayName: string }> = [];
-  const responseRegex = /<D:response>([\s\S]*?)<\/D:response>/g;
+  const responseRegex = /<(?:d|D):response>([\s\S]*?)<\/(?:d|D):response>/g;
   for (let m = responseRegex.exec(xml); m !== null; m = responseRegex.exec(xml)) {
     const block = m[1];
     if (block.includes("addressbook")) {
@@ -90,6 +92,7 @@ export async function listContacts(auth: CardDavAuth): Promise<CardDavContact[]>
     <d:resourcetype/>
   </d:prop>
 </d:propfind>`,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   // Yandex returns 404 for empty address book
@@ -101,7 +104,7 @@ export async function listContacts(auth: CardDavAuth): Promise<CardDavContact[]>
 
   const xml = await res.text();
   const contacts: CardDavContact[] = [];
-  const responseRegex = /<D:response>([\s\S]*?)<\/D:response>/g;
+  const responseRegex = /<(?:d|D):response>([\s\S]*?)<\/(?:d|D):response>/g;
   for (let m = responseRegex.exec(xml); m !== null; m = responseRegex.exec(xml)) {
     const block = m[1];
     // Skip collections (the address book itself)
@@ -126,6 +129,7 @@ export async function getContact(auth: CardDavAuth, href: string): Promise<strin
       Authorization: authHeader(auth),
       Accept: "text/vcard",
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`CardDAV GET ${href} failed: ${res.status} ${res.statusText}`);
@@ -158,9 +162,39 @@ export async function putContact(
   };
   if (etag) headers["If-Match"] = `"${etag}"`;
 
-  const res = await fetch(url, { method: "PUT", headers, body: vcard });
+  const res = await fetch(url, {
+    method: "PUT",
+    headers,
+    body: vcard,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
   if (!res.ok) {
     throw new Error(`CardDAV PUT ${filename} failed: ${res.status} ${res.statusText}`);
+  }
+}
+
+/** PUT — update a contact by its full href */
+export async function updateContact(
+  auth: CardDavAuth,
+  href: string,
+  vcard: string,
+  etag?: string,
+): Promise<void> {
+  const url = href.startsWith("http") ? href : `${CARDDAV_BASE}${href}`;
+  const headers: Record<string, string> = {
+    Authorization: authHeader(auth),
+    "Content-Type": "text/vcard; charset=utf-8",
+  };
+  if (etag) headers["If-Match"] = `"${etag}"`;
+
+  const res = await fetch(url, {
+    method: "PUT",
+    headers,
+    body: vcard,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`CardDAV PUT ${href} failed: ${res.status} ${res.statusText}`);
   }
 }
 
@@ -170,6 +204,7 @@ export async function deleteContact(auth: CardDavAuth, href: string): Promise<vo
   const res = await fetch(url, {
     method: "DELETE",
     headers: { Authorization: authHeader(auth) },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`CardDAV DELETE ${href} failed: ${res.status} ${res.statusText}`);

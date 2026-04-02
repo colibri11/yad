@@ -1,15 +1,21 @@
+/** Unfold RFC 6350 line folding (continuation lines start with space or tab) */
+function unfold(text: string): string {
+  return text.replace(/\r?\n[ \t]/g, "");
+}
+
 /** Parse basic contact info from vCard text */
 export function parseVCard(vcard: string) {
+  const unfolded = unfold(vcard);
   const get = (key: string): string | undefined => {
     const re = new RegExp(`^${key}[;:](.*)$`, "m");
-    const m = re.exec(vcard);
+    const m = re.exec(unfolded);
     return m ? m[1].trim() : undefined;
   };
 
   const getAll = (key: string): string[] => {
     const results: string[] = [];
     const re = new RegExp(`^${key}[;:](.*)$`, "gm");
-    for (let m = re.exec(vcard); m !== null; m = re.exec(vcard)) {
+    for (let m = re.exec(unfolded); m !== null; m = re.exec(unfolded)) {
       results.push(m[1].trim());
     }
     return results;

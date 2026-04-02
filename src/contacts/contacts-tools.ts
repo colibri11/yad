@@ -110,6 +110,7 @@ export function createContactsTools(config: YandexPluginConfig) {
           full_name: Type.Optional(Type.String({ description: "New full name" })),
           last_name: Type.Optional(Type.String({ description: "New last name" })),
           first_name: Type.Optional(Type.String({ description: "New first name" })),
+          middle_name: Type.Optional(Type.String({ description: "New middle name" })),
           email: Type.Optional(Type.String({ description: "New email" })),
           phone: Type.Optional(Type.String({ description: "New phone" })),
           organization: Type.Optional(Type.String({ description: "New organization" })),
@@ -125,6 +126,7 @@ export function createContactsTools(config: YandexPluginConfig) {
           full_name?: string;
           last_name?: string;
           first_name?: string;
+          middle_name?: string;
           email?: string;
           phone?: string;
           organization?: string;
@@ -137,12 +139,18 @@ export function createContactsTools(config: YandexPluginConfig) {
         const current = parseVCard(data);
         const uid = current.uid || crypto.randomUUID();
 
+        // Parse existing N field: last;first;middle;prefix;suffix
+        const nParts = (current.name || ";;;;").split(";");
+        const lastName = params.last_name ?? nParts[0] ?? "";
+        const firstName = params.first_name ?? nParts[1] ?? "";
+        const middleName = params.middle_name ?? nParts[2] ?? "";
+
         const lines = [
           "BEGIN:VCARD",
           "VERSION:3.0",
           `UID:${uid}`,
           `FN:${params.full_name ?? current.fullName}`,
-          `N:${params.last_name ?? ""};;${params.first_name ?? ""};;`,
+          `N:${lastName};${firstName};${middleName};;`,
           (params.email ?? current.emails[0])
             ? `EMAIL;TYPE=INTERNET:${params.email ?? current.emails[0]}`
             : "",
@@ -159,8 +167,7 @@ export function createContactsTools(config: YandexPluginConfig) {
           .filter(Boolean)
           .join("\r\n");
 
-        const filename = params.href.split("/").pop() || `${uid}.vcf`;
-        await carddav.putContact(a, filename, lines);
+        await carddav.updateContact(a, params.href, lines);
         return textResult(`Contact updated: "${params.full_name ?? current.fullName}"`);
       },
     },

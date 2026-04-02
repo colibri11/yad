@@ -102,4 +102,16 @@ END:VCARD`;
     const c = parseVCard(card);
     expect(c.phones[0]).toBe("tel:+79001234567");
   });
+
+  it("handles folded NOTE field (line continuation)", () => {
+    const card = `BEGIN:VCARD
+FN:Test
+NOTE:This is a very long note that does not fit
+ on a single line and continues with a leading space
+END:VCARD`;
+    const c = parseVCard(card);
+    expect(c.note).toBe(
+      "This is a very long note that does not fiton a single line and continues with a leading space",
+    );
+  });
 });

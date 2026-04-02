@@ -333,6 +333,38 @@ describe("WebDAV client operations", () => {
     expect(url).toBe("https://webdav.yandex.ru/Documents");
   });
 
+  it("encodes # and ? in path segments", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 207,
+      statusText: "Multi-Status",
+      text: () => Promise.resolve("<d:multistatus xmlns:d='DAV:'/>"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await webdav.propfind(auth, "/docs/file#1.txt");
+
+    const url = mockFetch.mock.calls[0][0];
+    expect(url).toBe("https://webdav.yandex.ru/docs/file%231.txt");
+    expect(url).not.toContain("#");
+  });
+
+  it("encodes ? in filename", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 207,
+      statusText: "Multi-Status",
+      text: () => Promise.resolve("<d:multistatus xmlns:d='DAV:'/>"),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await webdav.propfind(auth, "/what?.txt");
+
+    const url = mockFetch.mock.calls[0][0];
+    expect(url).toContain("%3F");
+    expect(url).not.toContain("?");
+  });
+
   it("auth header is correct Base64 encoding", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,

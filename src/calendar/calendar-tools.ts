@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { createDAVClient, type DAVCalendar } from "tsdav";
-import { formatDT, parseVEvent } from "../common/ical.js";
+import { dtLine, formatDT, parseVEvent } from "../common/ical.js";
 import type { YandexPluginConfig } from "../common/types.js";
 import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
 
@@ -69,8 +69,10 @@ export function createCalendarTools(config: YandexPluginConfig) {
           calendar = calendars[0];
         }
 
-        const timeRange =
-          params.start && params.end ? { start: params.start, end: params.end } : undefined;
+        const start = params.start;
+        const end =
+          params.end ?? (start ? new Date(Date.now() + 30 * 86400000).toISOString() : undefined);
+        const timeRange = start && end ? { start, end } : undefined;
 
         const objects = await client.fetchCalendarObjects({
           calendar,
@@ -130,8 +132,6 @@ export function createCalendarTools(config: YandexPluginConfig) {
         }
 
         const uid = crypto.randomUUID();
-        const dtstart = formatDT(params.start);
-        const dtend = formatDT(params.end);
 
         const ical = [
           "BEGIN:VCALENDAR",
@@ -139,8 +139,8 @@ export function createCalendarTools(config: YandexPluginConfig) {
           "PRODID:-//OpenClaw Yandex Plugin//EN",
           "BEGIN:VEVENT",
           `UID:${uid}`,
-          `DTSTART:${dtstart}`,
-          `DTEND:${dtend}`,
+          dtLine("DTSTART", params.start),
+          dtLine("DTEND", params.end),
           `SUMMARY:${params.summary}`,
           params.description ? `DESCRIPTION:${params.description}` : "",
           params.location ? `LOCATION:${params.location}` : "",
@@ -190,7 +190,9 @@ export function createCalendarTools(config: YandexPluginConfig) {
         const client = await createCalDavClient(config);
 
         // Fetch current event
-        const calUrl = params.event_url.replace(/[^/]+\.ics$/, "");
+        const lastSlash = params.event_url.lastIndexOf("/");
+        const calUrl =
+          lastSlash >= 0 ? params.event_url.substring(0, lastSlash + 1) : params.event_url;
         const objects = await client.fetchCalendarObjects({
           calendar: { url: calUrl } as DAVCalendar,
         });
@@ -199,8 +201,6 @@ export function createCalendarTools(config: YandexPluginConfig) {
 
         const current = parseVEvent(existing.data);
         const uid = current.uid || crypto.randomUUID();
-        const dtstart = formatDT(params.start || current.dtstart || new Date().toISOString());
-        const dtend = formatDT(params.end || current.dtend || new Date().toISOString());
 
         const ical = [
           "BEGIN:VCALENDAR",
@@ -208,8 +208,8 @@ export function createCalendarTools(config: YandexPluginConfig) {
           "PRODID:-//OpenClaw Yandex Plugin//EN",
           "BEGIN:VEVENT",
           `UID:${uid}`,
-          `DTSTART:${dtstart}`,
-          `DTEND:${dtend}`,
+          dtLine("DTSTART", params.start || current.dtstart || new Date().toISOString()),
+          dtLine("DTEND", params.end || current.dtend || new Date().toISOString()),
           `SUMMARY:${params.summary ?? current.summary}`,
           (params.description ?? current.description)
             ? `DESCRIPTION:${params.description ?? current.description}`

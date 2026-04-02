@@ -1,19 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { YandexPluginConfig } from "../../common/types.js";
 
-const { mockFetchAllContacts, mockGetContact, mockPutContact, mockDeleteContact } = vi.hoisted(
-  () => ({
-    mockFetchAllContacts: vi.fn(),
-    mockGetContact: vi.fn(),
-    mockPutContact: vi.fn(),
-    mockDeleteContact: vi.fn(),
-  }),
-);
+const {
+  mockFetchAllContacts,
+  mockGetContact,
+  mockPutContact,
+  mockUpdateContact,
+  mockDeleteContact,
+} = vi.hoisted(() => ({
+  mockFetchAllContacts: vi.fn(),
+  mockGetContact: vi.fn(),
+  mockPutContact: vi.fn(),
+  mockUpdateContact: vi.fn(),
+  mockDeleteContact: vi.fn(),
+}));
 
 vi.mock("../../common/carddav.js", () => ({
   fetchAllContacts: mockFetchAllContacts,
   getContact: mockGetContact,
   putContact: mockPutContact,
+  updateContact: mockUpdateContact,
   deleteContact: mockDeleteContact,
 }));
 
@@ -115,11 +121,11 @@ describe("yad_contacts_create", () => {
 });
 
 describe("yad_contacts_update", () => {
-  it("updates existing contact fields", async () => {
+  it("updates existing contact fields and preserves N structure", async () => {
     mockGetContact.mockResolvedValue(
-      "BEGIN:VCARD\nVERSION:3.0\nFN:Old Name\nUID:u-1\nTEL;TYPE=CELL:+70001112233\nEND:VCARD",
+      "BEGIN:VCARD\nVERSION:3.0\nFN:Иванов Алексей\nN:Иванов;Алексей;Петрович;;\nUID:u-1\nTEL;TYPE=CELL:+70001112233\nEND:VCARD",
     );
-    mockPutContact.mockResolvedValue(undefined);
+    mockUpdateContact.mockResolvedValue(undefined);
 
     const tool = findTool("yad_contacts_update");
     const result = await tool.execute("id", {
@@ -128,10 +134,14 @@ describe("yad_contacts_update", () => {
       phone: "+79998887766",
     });
 
-    const vcard = mockPutContact.mock.calls[0][2];
+    expect(mockUpdateContact).toHaveBeenCalledOnce();
+    const [, href, vcard] = mockUpdateContact.mock.calls[0];
+    expect(href).toBe("/addressbook/user@yandex.ru/1/u-1.vcf");
     expect(vcard).toContain("FN:New Name");
     expect(vcard).toContain("TEL;TYPE=CELL:+79998887766");
     expect(vcard).toContain("UID:u-1");
+    // Bug 1 fix: N field must have correct structure (last;first;middle;;)
+    expect(vcard).toContain("N:Иванов;Алексей;Петрович;;");
     expect(result.content[0].text).toContain("New Name");
   });
 });
