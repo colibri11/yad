@@ -1,83 +1,50 @@
 import { Type } from "@sinclair/typebox";
-import { createDAVClient, type DAVAddressBook } from "tsdav";
+import * as carddav from "../common/carddav.js";
 import type { YandexPluginConfig } from "../common/types.js";
 import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
 import { parseVCard } from "../common/vcard.js";
 
-const CARDDAV_URL = "https://carddav.yandex.ru";
-
-async function createCardDavClient(config: YandexPluginConfig) {
-  return createDAVClient({
-    serverUrl: CARDDAV_URL,
-    credentials: {
-      username: resolveLogin(config.login),
-      password: requirePassword(config, "contacts"),
-    },
-    authMethod: "Basic",
-    defaultAccountType: "carddav",
-  });
+function contactsAuth(config: YandexPluginConfig): carddav.CardDavAuth {
+  return {
+    login: resolveLogin(config.login),
+    password: requirePassword(config, "contacts"),
+  };
 }
 
 export function createContactsTools(config: YandexPluginConfig) {
+  const auth = () => contactsAuth(config);
+
   return [
     {
       name: "yandex_contacts_list",
       description:
         "List all contacts from Yandex.Contacts address book. " +
         "Returns name, phones, emails for each contact.",
-      parameters: Type.Object(
-        {
-          address_book_url: Type.Optional(
-            Type.String({
-              description: "Address book URL. If omitted, uses the first address book.",
-            }),
-          ),
-        },
-        { additionalProperties: false },
-      ),
-      async execute(_id: string, params: { address_book_url?: string }) {
-        const client = await createCardDavClient(config);
-        let addressBook: DAVAddressBook;
-
-        if (params.address_book_url) {
-          addressBook = { url: params.address_book_url } as DAVAddressBook;
-        } else {
-          const books = await client.fetchAddressBooks();
-          if (books.length === 0) throw new Error("No address books found");
-          addressBook = books[0];
-        }
-
-        const vcards = await client.fetchVCards({ addressBook });
-
-        const contacts = vcards
-          .filter((v) => v.data)
-          .map((v) => ({
-            ...parseVCard(v.data!),
-            url: v.url,
-            etag: v.etag,
+      parameters: Type.Object({}, { additionalProperties: false }),
+      async execute() {
+        const contacts = await carddav.fetchAllContacts(auth());
+        const parsed = contacts
+          .filter((c) => c.data)
+          .map((c) => ({
+            ...parseVCard(c.data!),
+            href: c.href,
+            etag: c.etag,
           }));
-
-        return jsonResult({ total: contacts.length, contacts });
+        return jsonResult({ total: parsed.length, contacts: parsed });
       },
     },
     {
       name: "yandex_contacts_get",
-      description: "Get a specific contact by URL from Yandex.Contacts.",
+      description: "Get a specific contact by href from Yandex.Contacts.",
       parameters: Type.Object(
         {
-          contact_url: Type.String({ description: "Contact URL from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
         },
         { additionalProperties: false },
       ),
-      async execute(_id: string, params: { contact_url: string }) {
-        const client = await createCardDavClient(config);
-        const bookUrl = params.contact_url.replace(/[^/]+\.vcf$/, "");
-        const vcards = await client.fetchVCards({
-          addressBook: { url: bookUrl } as DAVAddressBook,
-        });
-        const card = vcards.find((v) => v.url === params.contact_url);
-        if (!card?.data) throw new Error(`Contact not found: ${params.contact_url}`);
-        return jsonResult(parseVCard(card.data));
+      async execute(_id: string, params: { href: string }) {
+        const data = await carddav.getContact(auth(), params.href);
+        return jsonResult(parseVCard(data));
       },
     },
     {
@@ -94,9 +61,6 @@ export function createContactsTools(config: YandexPluginConfig) {
           organization: Type.Optional(Type.String({ description: "Organization" })),
           title: Type.Optional(Type.String({ description: "Job title" })),
           note: Type.Optional(Type.String({ description: "Note" })),
-          address_book_url: Type.Optional(
-            Type.String({ description: "Address book URL. If omitted, uses the first." }),
-          ),
         },
         { additionalProperties: false },
       ),
@@ -112,31 +76,15 @@ export function createContactsTools(config: YandexPluginConfig) {
           organization?: string;
           title?: string;
           note?: string;
-          address_book_url?: string;
         },
       ) {
-        const client = await createCardDavClient(config);
-        let addressBook: DAVAddressBook;
-
-        if (params.address_book_url) {
-          addressBook = { url: params.address_book_url } as DAVAddressBook;
-        } else {
-          const books = await client.fetchAddressBooks();
-          if (books.length === 0) throw new Error("No address books found");
-          addressBook = books[0];
-        }
-
         const uid = crypto.randomUUID();
-        const lastName = params.last_name || "";
-        const firstName = params.first_name || "";
-        const middleName = params.middle_name || "";
-
         const lines = [
           "BEGIN:VCARD",
           "VERSION:3.0",
           `UID:${uid}`,
           `FN:${params.full_name}`,
-          `N:${lastName};${firstName};${middleName};;`,
+          `N:${params.last_name || ""};${params.first_name || ""};${params.middle_name || ""};;`,
           params.email ? `EMAIL;TYPE=INTERNET:${params.email}` : "",
           params.phone ? `TEL;TYPE=CELL:${params.phone}` : "",
           params.organization ? `ORG:${params.organization}` : "",
@@ -147,12 +95,7 @@ export function createContactsTools(config: YandexPluginConfig) {
           .filter(Boolean)
           .join("\r\n");
 
-        await client.createVCard({
-          addressBook,
-          filename: `${uid}.vcf`,
-          vCardString: lines,
-        });
-
+        await carddav.putContact(auth(), `${uid}.vcf`, lines);
         return textResult(`Contact created: "${params.full_name}"`);
       },
     },
@@ -160,10 +103,10 @@ export function createContactsTools(config: YandexPluginConfig) {
       name: "yandex_contacts_update",
       description:
         "Update an existing contact in Yandex.Contacts. " +
-        "Requires the contact URL from yandex_contacts_list.",
+        "Requires the contact href from yandex_contacts_list.",
       parameters: Type.Object(
         {
-          contact_url: Type.String({ description: "Contact URL from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
           full_name: Type.Optional(Type.String({ description: "New full name" })),
           last_name: Type.Optional(Type.String({ description: "New last name" })),
           first_name: Type.Optional(Type.String({ description: "New first name" })),
@@ -178,7 +121,7 @@ export function createContactsTools(config: YandexPluginConfig) {
       async execute(
         _id: string,
         params: {
-          contact_url: string;
+          href: string;
           full_name?: string;
           last_name?: string;
           first_name?: string;
@@ -189,17 +132,9 @@ export function createContactsTools(config: YandexPluginConfig) {
           note?: string;
         },
       ) {
-        const client = await createCardDavClient(config);
-
-        // Fetch current contact
-        const bookUrl = params.contact_url.replace(/[^/]+\.vcf$/, "");
-        const vcards = await client.fetchVCards({
-          addressBook: { url: bookUrl } as DAVAddressBook,
-        });
-        const existing = vcards.find((v) => v.url === params.contact_url);
-        if (!existing?.data) throw new Error(`Contact not found: ${params.contact_url}`);
-
-        const current = parseVCard(existing.data);
+        const a = auth();
+        const data = await carddav.getContact(a, params.href);
+        const current = parseVCard(data);
         const uid = current.uid || crypto.randomUUID();
 
         const lines = [
@@ -224,14 +159,8 @@ export function createContactsTools(config: YandexPluginConfig) {
           .filter(Boolean)
           .join("\r\n");
 
-        await client.updateVCard({
-          vCard: {
-            url: params.contact_url,
-            data: lines,
-            etag: existing.etag,
-          },
-        });
-
+        const filename = params.href.split("/").pop() || `${uid}.vcf`;
+        await carddav.putContact(a, filename, lines);
         return textResult(`Contact updated: "${params.full_name ?? current.fullName}"`);
       },
     },
@@ -240,16 +169,13 @@ export function createContactsTools(config: YandexPluginConfig) {
       description: "Delete a contact from Yandex.Contacts.",
       parameters: Type.Object(
         {
-          contact_url: Type.String({ description: "Contact URL from yandex_contacts_list" }),
+          href: Type.String({ description: "Contact href from yandex_contacts_list" }),
         },
         { additionalProperties: false },
       ),
-      async execute(_id: string, params: { contact_url: string }) {
-        const client = await createCardDavClient(config);
-        await client.deleteVCard({
-          vCard: { url: params.contact_url, etag: "" },
-        });
-        return textResult(`Contact deleted: ${params.contact_url}`);
+      async execute(_id: string, params: { href: string }) {
+        await carddav.deleteContact(auth(), params.href);
+        return textResult(`Contact deleted: ${params.href}`);
       },
     },
   ];

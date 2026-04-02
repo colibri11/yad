@@ -1,28 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { YandexPluginConfig } from "../../common/types.js";
 
-const {
-  mockFetchAddressBooks,
-  mockFetchVCards,
-  mockCreateVCard,
-  mockUpdateVCard,
-  mockDeleteVCard,
-} = vi.hoisted(() => ({
-  mockFetchAddressBooks: vi.fn(),
-  mockFetchVCards: vi.fn(),
-  mockCreateVCard: vi.fn(),
-  mockUpdateVCard: vi.fn(),
-  mockDeleteVCard: vi.fn(),
-}));
-
-vi.mock("tsdav", () => ({
-  createDAVClient: vi.fn().mockResolvedValue({
-    fetchAddressBooks: mockFetchAddressBooks,
-    fetchVCards: mockFetchVCards,
-    createVCard: mockCreateVCard,
-    updateVCard: mockUpdateVCard,
-    deleteVCard: mockDeleteVCard,
+const { mockFetchAllContacts, mockGetContact, mockPutContact, mockDeleteContact } = vi.hoisted(
+  () => ({
+    mockFetchAllContacts: vi.fn(),
+    mockGetContact: vi.fn(),
+    mockPutContact: vi.fn(),
+    mockDeleteContact: vi.fn(),
   }),
+);
+
+vi.mock("../../common/carddav.js", () => ({
+  fetchAllContacts: mockFetchAllContacts,
+  getContact: mockGetContact,
+  putContact: mockPutContact,
+  deleteContact: mockDeleteContact,
 }));
 
 import { createContactsTools } from "../contacts-tools.js";
@@ -42,18 +34,17 @@ beforeEach(() => {
 });
 
 describe("yandex_contacts_list", () => {
-  it("returns parsed contacts from first address book", async () => {
-    mockFetchAddressBooks.mockResolvedValue([{ url: "/addressbook/1/" }]);
-    mockFetchVCards.mockResolvedValue([
+  it("returns parsed contacts", async () => {
+    mockFetchAllContacts.mockResolvedValue([
       {
-        data: `BEGIN:VCARD\nVERSION:3.0\nFN:Иван Петров\nTEL;TYPE=CELL:+79001234567\nEMAIL;TYPE=INTERNET:ivan@test.com\nUID:c-1\nEND:VCARD`,
-        url: "/addressbook/1/c-1.vcf",
+        href: "/addressbook/user@yandex.ru/1/c-1.vcf",
         etag: "etag1",
+        data: "BEGIN:VCARD\nVERSION:3.0\nFN:Иван Петров\nTEL;TYPE=CELL:+79001234567\nEMAIL;TYPE=INTERNET:ivan@test.com\nUID:c-1\nEND:VCARD",
       },
     ]);
 
     const tool = findTool("yandex_contacts_list");
-    const result = await tool.execute("id", {});
+    const result = await tool.execute();
     const data = JSON.parse(result.content[0].text);
 
     expect(data.total).toBe(1);
@@ -62,57 +53,33 @@ describe("yandex_contacts_list", () => {
     expect(data.contacts[0].emails[0]).toBe("ivan@test.com");
   });
 
-  it("uses provided address book URL", async () => {
-    mockFetchVCards.mockResolvedValue([]);
+  it("returns empty when no contacts", async () => {
+    mockFetchAllContacts.mockResolvedValue([]);
 
     const tool = findTool("yandex_contacts_list");
-    await tool.execute("id", { address_book_url: "/custom/book/" });
+    const result = await tool.execute();
+    const data = JSON.parse(result.content[0].text);
 
-    expect(mockFetchVCards).toHaveBeenCalledWith({
-      addressBook: { url: "/custom/book/" },
-    });
-    expect(mockFetchAddressBooks).not.toHaveBeenCalled();
-  });
-
-  it("throws when no address books found", async () => {
-    mockFetchAddressBooks.mockResolvedValue([]);
-
-    const tool = findTool("yandex_contacts_list");
-    await expect(tool.execute("id", {})).rejects.toThrow("No address books found");
+    expect(data.total).toBe(0);
+    expect(data.contacts).toEqual([]);
   });
 });
 
 describe("yandex_contacts_get", () => {
   it("returns a specific contact", async () => {
-    mockFetchVCards.mockResolvedValue([
-      {
-        data: `BEGIN:VCARD\nFN:Alice\nUID:a-1\nEND:VCARD`,
-        url: "/addressbook/1/a-1.vcf",
-        etag: "e1",
-      },
-    ]);
+    mockGetContact.mockResolvedValue("BEGIN:VCARD\nFN:Alice\nUID:a-1\nEND:VCARD");
 
     const tool = findTool("yandex_contacts_get");
-    const result = await tool.execute("id", { contact_url: "/addressbook/1/a-1.vcf" });
+    const result = await tool.execute("id", { href: "/addressbook/user@yandex.ru/1/a-1.vcf" });
     const data = JSON.parse(result.content[0].text);
 
     expect(data.fullName).toBe("Alice");
-  });
-
-  it("throws when contact not found", async () => {
-    mockFetchVCards.mockResolvedValue([]);
-
-    const tool = findTool("yandex_contacts_get");
-    await expect(tool.execute("id", { contact_url: "/addressbook/1/missing.vcf" })).rejects.toThrow(
-      "Contact not found",
-    );
   });
 });
 
 describe("yandex_contacts_create", () => {
   it("creates a vCard with all fields", async () => {
-    mockFetchAddressBooks.mockResolvedValue([{ url: "/addressbook/1/" }]);
-    mockCreateVCard.mockResolvedValue(undefined);
+    mockPutContact.mockResolvedValue(undefined);
 
     const tool = findTool("yandex_contacts_create");
     const result = await tool.execute("id", {
@@ -125,75 +92,60 @@ describe("yandex_contacts_create", () => {
       title: "Директор",
     });
 
-    expect(mockCreateVCard).toHaveBeenCalledOnce();
-    const call = mockCreateVCard.mock.calls[0][0];
-    expect(call.vCardString).toContain("FN:Мария Иванова");
-    expect(call.vCardString).toContain("EMAIL;TYPE=INTERNET:maria@test.com");
-    expect(call.vCardString).toContain("TEL;TYPE=CELL:+79009876543");
-    expect(call.vCardString).toContain("ORG:Тест");
-    expect(call.filename).toMatch(/\.vcf$/);
-
+    expect(mockPutContact).toHaveBeenCalledOnce();
+    const [, filename, vcard] = mockPutContact.mock.calls[0];
+    expect(filename).toMatch(/\.vcf$/);
+    expect(vcard).toContain("FN:Мария Иванова");
+    expect(vcard).toContain("EMAIL;TYPE=INTERNET:maria@test.com");
+    expect(vcard).toContain("TEL;TYPE=CELL:+79009876543");
     expect(result.content[0].text).toContain("Мария Иванова");
   });
 
   it("creates minimal contact with only name", async () => {
-    mockFetchAddressBooks.mockResolvedValue([{ url: "/addressbook/1/" }]);
-    mockCreateVCard.mockResolvedValue(undefined);
+    mockPutContact.mockResolvedValue(undefined);
 
     const tool = findTool("yandex_contacts_create");
     await tool.execute("id", { full_name: "Minimal" });
 
-    const card = mockCreateVCard.mock.calls[0][0].vCardString;
-    expect(card).toContain("FN:Minimal");
-    expect(card).not.toContain("EMAIL");
-    expect(card).not.toContain("TEL");
+    const vcard = mockPutContact.mock.calls[0][2];
+    expect(vcard).toContain("FN:Minimal");
+    expect(vcard).not.toContain("EMAIL");
+    expect(vcard).not.toContain("TEL");
   });
 });
 
 describe("yandex_contacts_update", () => {
   it("updates existing contact fields", async () => {
-    mockFetchVCards.mockResolvedValue([
-      {
-        data: `BEGIN:VCARD\nVERSION:3.0\nFN:Old Name\nUID:u-1\nTEL;TYPE=CELL:+70001112233\nEND:VCARD`,
-        url: "/addressbook/1/u-1.vcf",
-        etag: "etag-old",
-      },
-    ]);
-    mockUpdateVCard.mockResolvedValue(undefined);
+    mockGetContact.mockResolvedValue(
+      "BEGIN:VCARD\nVERSION:3.0\nFN:Old Name\nUID:u-1\nTEL;TYPE=CELL:+70001112233\nEND:VCARD",
+    );
+    mockPutContact.mockResolvedValue(undefined);
 
     const tool = findTool("yandex_contacts_update");
     const result = await tool.execute("id", {
-      contact_url: "/addressbook/1/u-1.vcf",
+      href: "/addressbook/user@yandex.ru/1/u-1.vcf",
       full_name: "New Name",
       phone: "+79998887766",
     });
 
-    const call = mockUpdateVCard.mock.calls[0][0];
-    expect(call.vCard.data).toContain("FN:New Name");
-    expect(call.vCard.data).toContain("TEL;TYPE=CELL:+79998887766");
-    expect(call.vCard.data).toContain("UID:u-1");
+    const vcard = mockPutContact.mock.calls[0][2];
+    expect(vcard).toContain("FN:New Name");
+    expect(vcard).toContain("TEL;TYPE=CELL:+79998887766");
+    expect(vcard).toContain("UID:u-1");
     expect(result.content[0].text).toContain("New Name");
-  });
-
-  it("throws when contact not found", async () => {
-    mockFetchVCards.mockResolvedValue([]);
-
-    const tool = findTool("yandex_contacts_update");
-    await expect(
-      tool.execute("id", { contact_url: "/addressbook/1/missing.vcf", full_name: "X" }),
-    ).rejects.toThrow("Contact not found");
   });
 });
 
 describe("yandex_contacts_delete", () => {
-  it("deletes contact by URL", async () => {
-    mockDeleteVCard.mockResolvedValue(undefined);
+  it("deletes contact by href", async () => {
+    mockDeleteContact.mockResolvedValue(undefined);
 
     const tool = findTool("yandex_contacts_delete");
-    await tool.execute("id", { contact_url: "/addressbook/1/c-1.vcf" });
+    await tool.execute("id", { href: "/addressbook/user@yandex.ru/1/c-1.vcf" });
 
-    expect(mockDeleteVCard).toHaveBeenCalledWith({
-      vCard: { url: "/addressbook/1/c-1.vcf", etag: "" },
-    });
+    expect(mockDeleteContact).toHaveBeenCalledWith(
+      expect.objectContaining({ login: "user@yandex.ru" }),
+      "/addressbook/user@yandex.ru/1/c-1.vcf",
+    );
   });
 });
