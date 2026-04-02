@@ -22,7 +22,7 @@ openclaw plugins install github:colibri11/yad
 Для локальной разработки:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/colibri11/yad.git
 cd yad
 npm install
 openclaw plugins install -l .
@@ -102,11 +102,25 @@ openclaw plugins install -l .
 ## Разработка
 
 ```bash
-npm install               # Установить зависимости
-npx tsc --noEmit          # Проверка типов
-npx tsc                   # Сборка в dist/
+npm install                    # Установить зависимости
+npx tsc                        # Сборка в dist/
+npx vitest run                 # Запуск тестов
+npx biome check .              # Линтинг + форматирование
 openclaw plugins install -l .  # Установить локально в OpenClaw
 ```
+
+### Smoke-тест с реальными сервисами
+
+```bash
+export YANDEX_LOGIN="user@yandex.ru"
+export YANDEX_DISK_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export YANDEX_MAIL_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export YANDEX_CALENDAR_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export YANDEX_CONTACTS_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+npx tsx scripts/smoke-test.ts
+```
+
+Можно задать только часть паролей — ненастроенные сервисы будут пропущены.
 
 ## Лицензия
 

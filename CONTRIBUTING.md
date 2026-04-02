@@ -3,7 +3,7 @@
 ## Быстрый старт
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/colibri11/yad.git
 cd yad
 npm install
 ```
@@ -34,7 +34,8 @@ openclaw.plugin.json      — манифест OpenClaw (список tool-ов,
 src/
   common/
     types.ts              — YandexPluginConfig, resolveLogin, textResult, jsonResult
-    webdav.ts             — WebDAV-клиент (native fetch, без зависимостей)
+    webdav.ts             — WebDAV-клиент для Диска (native fetch)
+    carddav.ts            — CardDAV-клиент для Контактов (native fetch)
     ical.ts               — парсер iCalendar (parseVEvent, formatDT)
     vcard.ts              — парсер vCard (parseVCard)
   disk/                   — инструменты Яндекс.Диска (WebDAV)
@@ -73,7 +74,8 @@ src/
 
 - **Чистые функции** (парсеры, хелперы) — unit-тесты без моков
 - **WebDAV-клиент** — мок `fetch` через `vi.stubGlobal`
-- **Tool execute()** — мок внешних библиотек (`tsdav`, `imapflow`, `nodemailer`) через `vi.mock` + `vi.hoisted`
+- **CardDAV-клиент** — мок `fetch` через `vi.stubGlobal` (аналогично WebDAV)
+- **Tool execute()** — мок внешних библиотек (`tsdav`, `imapflow`, `nodemailer`, `carddav`) через `vi.mock` + `vi.hoisted`
 
 ## Линтинг
 
