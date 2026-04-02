@@ -16,12 +16,6 @@
 ## Установка
 
 ```bash
-openclaw plugins install github:colibri11/yad
-```
-
-Для локальной разработки:
-
-```bash
 git clone https://github.com/colibri11/yad.git
 cd yad
 npm install
