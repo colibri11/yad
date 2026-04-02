@@ -110,4 +110,4 @@ openclaw plugins install -l .  # Установить локально в OpenCl
 
 ## Лицензия
 
-MIT
+[MIT](LICENSE)
