@@ -3,13 +3,26 @@ export function unfold(text: string): string {
   return text.replace(/\r?\n[ \t]/g, "");
 }
 
+/**
+ * Extract the value from an iCal property line, handling parameters.
+ * e.g. "DTSTART;VALUE=DATE-TIME;TZID=Europe/Moscow:20260402T190500" → "20260402T190500"
+ * e.g. "SUMMARY:Team standup" → "Team standup"
+ */
+function extractValue(line: string): string {
+  // Property line format: NAME[;PARAM=VALUE]*:VALUE
+  // We need everything after the last unquoted colon
+  const colonIdx = line.indexOf(":");
+  return colonIdx >= 0 ? line.substring(colonIdx + 1).trim() : line.trim();
+}
+
 /** Extract basic event info from iCalendar text */
 export function parseVEvent(ical: string) {
   const unfolded = unfold(ical);
   const get = (key: string): string | undefined => {
     const re = new RegExp(`^${key}[;:](.*)$`, "m");
     const m = re.exec(unfolded);
-    return m ? m[1].trim() : undefined;
+    if (!m) return undefined;
+    return extractValue(m[1]);
   };
 
   return {

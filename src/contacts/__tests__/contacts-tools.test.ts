@@ -107,7 +107,20 @@ describe("yad_contacts_create", () => {
     expect(result.content[0].text).toContain("Мария Иванова");
   });
 
-  it("creates minimal contact with only name", async () => {
+  it("creates contact with only full_name — splits into N fields", async () => {
+    mockPutContact.mockResolvedValue(undefined);
+
+    const tool = findTool("yad_contacts_create");
+    await tool.execute("id", { full_name: "OpenClaw Yad Test" });
+
+    const vcard = mockPutContact.mock.calls[0][2];
+    expect(vcard).toContain("FN:OpenClaw Yad Test");
+    // full_name split: first word → last name, rest → first name
+    expect(vcard).toContain("N:OpenClaw;Yad Test;;;");
+    expect(vcard).not.toContain("N:;;;;");
+  });
+
+  it("creates single-word name contact", async () => {
     mockPutContact.mockResolvedValue(undefined);
 
     const tool = findTool("yad_contacts_create");
@@ -115,6 +128,7 @@ describe("yad_contacts_create", () => {
 
     const vcard = mockPutContact.mock.calls[0][2];
     expect(vcard).toContain("FN:Minimal");
+    expect(vcard).toContain("N:;Minimal;;;");
     expect(vcard).not.toContain("EMAIL");
     expect(vcard).not.toContain("TEL");
   });

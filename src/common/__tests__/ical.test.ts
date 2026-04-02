@@ -66,15 +66,38 @@ END:VEVENT`;
     expect(e.rrule).toBeUndefined();
   });
 
-  it("handles DTSTART with parameters (VALUE=DATE)", () => {
+  it("handles DTSTART with VALUE=DATE parameter", () => {
     const allDay = `BEGIN:VEVENT
 SUMMARY:Holiday
 DTSTART;VALUE=DATE:20260501
 DTEND;VALUE=DATE:20260502
 END:VEVENT`;
     const e = parseVEvent(allDay);
-    expect(e.dtstart).toBe("VALUE=DATE:20260501");
-    expect(e.dtend).toBe("VALUE=DATE:20260502");
+    expect(e.dtstart).toBe("20260501");
+    expect(e.dtend).toBe("20260502");
+  });
+
+  it("handles DTSTART with TZID parameter", () => {
+    const event = `BEGIN:VEVENT
+SUMMARY:Moscow meeting
+DTSTART;TZID=Europe/Moscow:20260410T190000
+DTEND;TZID=Europe/Moscow:20260410T200000
+UID:tz-test
+END:VEVENT`;
+    const e = parseVEvent(event);
+    expect(e.dtstart).toBe("20260410T190000");
+    expect(e.dtend).toBe("20260410T200000");
+  });
+
+  it("handles DTSTART with VALUE=DATE-TIME parameter", () => {
+    const event = `BEGIN:VEVENT
+DTSTART;VALUE=DATE-TIME:20260402T160500Z
+DTEND;VALUE=DATE-TIME:20260402T162000Z
+UID:dt-test
+END:VEVENT`;
+    const e = parseVEvent(event);
+    expect(e.dtstart).toBe("20260402T160500Z");
+    expect(e.dtend).toBe("20260402T162000Z");
   });
 });
 

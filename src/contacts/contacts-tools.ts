@@ -79,12 +79,28 @@ export function createContactsTools(config: YandexPluginConfig) {
         },
       ) {
         const uid = crypto.randomUUID();
+
+        // If only full_name given, split into first/last for N field
+        // Yandex ignores FN when N is all-empty
+        let lastName = params.last_name || "";
+        let firstName = params.first_name || "";
+        const middleName = params.middle_name || "";
+        if (!lastName && !firstName) {
+          const parts = params.full_name.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            lastName = parts[0];
+            firstName = parts.slice(1).join(" ");
+          } else {
+            firstName = parts[0] || "";
+          }
+        }
+
         const lines = [
           "BEGIN:VCARD",
           "VERSION:3.0",
           `UID:${uid}`,
           `FN:${params.full_name}`,
-          `N:${params.last_name || ""};${params.first_name || ""};${params.middle_name || ""};;`,
+          `N:${lastName};${firstName};${middleName};;`,
           params.email ? `EMAIL;TYPE=INTERNET:${params.email}` : "",
           params.phone ? `TEL;TYPE=CELL:${params.phone}` : "",
           params.organization ? `ORG:${params.organization}` : "",
