@@ -16,6 +16,7 @@
       "yad_mail_list",
       "yad_mail_read",
       "yad_mail_send",
+      "yad_mail_get_attachment",
       "yad_mail_search",
       "yad_calendar_list",
       "yad_calendar_events",

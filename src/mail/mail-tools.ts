@@ -229,6 +229,60 @@ export function createMailTools(config: YandexPluginConfig) {
       },
     },
     {
+      name: "yad_mail_get_attachment",
+      description:
+        "Download an email attachment by message UID and filename. " +
+        "Returns content as text for text-based types, or base64 for binary.",
+      parameters: Type.Object(
+        {
+          uid: Type.Integer({ description: "Message UID" }),
+          filename: Type.String({ description: "Attachment filename (as returned by yad_mail_read)" }),
+          folder: Type.Optional(
+            Type.String({ description: 'Mailbox folder, default "INBOX"', default: "INBOX" }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      async execute(_id: string, params: { uid: number; filename: string; folder?: string }) {
+        const client = createImapClient(config);
+        try {
+          await client.connect();
+          const lock = await client.getMailboxLock(params.folder || "INBOX");
+          try {
+            const message = await client.fetchOne(String(params.uid), {
+              source: true,
+              uid: true,
+            });
+            if (!message || !("source" in message) || !message.source) {
+              throw new Error(`Message UID ${params.uid} not found`);
+            }
+            const parsed = await simpleParser(message.source as Buffer);
+            const attachment = parsed.attachments?.find((a) => a.filename === params.filename);
+            if (!attachment) {
+              const available = parsed.attachments?.map((a) => a.filename).join(", ") || "none";
+              throw new Error(
+                `Attachment "${params.filename}" not found. Available: ${available}`,
+              );
+            }
+            const isText = attachment.contentType.startsWith("text/");
+            return jsonResult({
+              filename: attachment.filename,
+              contentType: attachment.contentType,
+              size: attachment.size,
+              encoding: isText ? "utf-8" : "base64",
+              content: isText
+                ? attachment.content.toString("utf-8")
+                : attachment.content.toString("base64"),
+            });
+          } finally {
+            lock.release();
+          }
+        } finally {
+          await client.logout();
+        }
+      },
+    },
+    {
       name: "yad_mail_search",
       description:
         "Search for emails in Yandex.Mail using IMAP search criteria. " +

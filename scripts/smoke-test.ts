@@ -101,6 +101,49 @@ if (config.mail_app_password) {
     console.log(`    Писем в INBOX: ${data.total}, показано: ${data.showing}`);
   });
 
+  await run("get attachment", async () => {
+    // Читаем последние письма и ищем первое с вложением
+    const listR = await findTool(tools, "yad_mail_list").execute("t", { folder: "INBOX", limit: 20 });
+    const listData = JSON.parse(listR.content[0].text);
+
+    let attachment: { filename: string; contentType: string; size: number } | null = null;
+    let msgUid: number | null = null;
+
+    for (const msg of listData.messages) {
+      const readR = await findTool(tools, "yad_mail_read").execute("t", { uid: msg.uid });
+      const readData = JSON.parse(readR.content[0].text);
+      if (readData.attachments?.length > 0) {
+        attachment = readData.attachments[0];
+        msgUid = msg.uid;
+        break;
+      }
+    }
+
+    if (!attachment || !msgUid) {
+      console.log("    Нет писем с вложениями в последних 20 — пропускаем");
+      return;
+    }
+
+    console.log(`    Письмо UID ${msgUid}, вложение: ${attachment.filename} (${attachment.contentType}, ${attachment.size} bytes)`);
+
+    const r = await findTool(tools, "yad_mail_get_attachment").execute("t", {
+      uid: msgUid,
+      filename: attachment.filename,
+    });
+    const data = JSON.parse(r.content[0].text);
+
+    if (!data.content || data.content.length === 0) {
+      throw new Error("Attachment content is empty");
+    }
+    if (data.filename !== attachment.filename) {
+      throw new Error(`Filename mismatch: ${data.filename} !== ${attachment.filename}`);
+    }
+    if (data.encoding !== "utf-8" && data.encoding !== "base64") {
+      throw new Error(`Unexpected encoding: ${data.encoding}`);
+    }
+    console.log(`    Содержимое получено: encoding=${data.encoding}, length=${data.content.length}`);
+  });
+
   await run("search recent", async () => {
     const since = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
     const r = await findTool(tools, "yad_mail_search").execute("t", { since, limit: 3 });

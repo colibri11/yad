@@ -141,6 +141,74 @@ describe("yad_mail_read", () => {
   });
 });
 
+describe("yad_mail_get_attachment", () => {
+  it("returns text attachment as utf-8", async () => {
+    mockFetchOne.mockResolvedValue({
+      source: Buffer.from("raw email"),
+    });
+    vi.mocked(simpleParser).mockResolvedValue({
+      attachments: [
+        {
+          filename: "notes.txt",
+          contentType: "text/plain",
+          size: 11,
+          content: Buffer.from("hello world"),
+        },
+      ],
+    } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
+
+    const tool = findTool("yad_mail_get_attachment");
+    const result = await tool.execute("id", { uid: 105, filename: "notes.txt" });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(data.filename).toBe("notes.txt");
+    expect(data.encoding).toBe("utf-8");
+    expect(data.content).toBe("hello world");
+    expect(mockConnect).toHaveBeenCalledOnce();
+    expect(mockLogout).toHaveBeenCalledOnce();
+  });
+
+  it("returns binary attachment as base64", async () => {
+    const bin = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    mockFetchOne.mockResolvedValue({
+      source: Buffer.from("raw email"),
+    });
+    vi.mocked(simpleParser).mockResolvedValue({
+      attachments: [
+        {
+          filename: "image.png",
+          contentType: "image/png",
+          size: bin.length,
+          content: bin,
+        },
+      ],
+    } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
+
+    const tool = findTool("yad_mail_get_attachment");
+    const result = await tool.execute("id", { uid: 105, filename: "image.png" });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(data.encoding).toBe("base64");
+    expect(data.content).toBe(bin.toString("base64"));
+  });
+
+  it("throws when attachment not found", async () => {
+    mockFetchOne.mockResolvedValue({
+      source: Buffer.from("raw email"),
+    });
+    vi.mocked(simpleParser).mockResolvedValue({
+      attachments: [
+        { filename: "other.pdf", contentType: "application/pdf", size: 100, content: Buffer.from("") },
+      ],
+    } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
+
+    const tool = findTool("yad_mail_get_attachment");
+    await expect(tool.execute("id", { uid: 105, filename: "missing.txt" })).rejects.toThrow(
+      'Attachment "missing.txt" not found',
+    );
+  });
+});
+
 describe("yad_mail_send", () => {
   it("sends email via SMTP", async () => {
     mockSendMail.mockResolvedValue({ messageId: "<test-id@yandex.ru>" });
