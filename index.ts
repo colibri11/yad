@@ -1,4 +1,6 @@
 // biome-ignore lint/correctness/noUnusedImports: OpenClawPluginDefinition required for tsc default export
+
+import { readFileSync } from "node:fs";
 import type { AnyAgentTool, OpenClawPluginDefinition } from "openclaw/plugin-sdk/plugin-entry";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
@@ -8,12 +10,14 @@ import { createDiskTools } from "./src/disk/disk-tools.js";
 import { startIdleWatcher } from "./src/mail/idle-watcher.js";
 import { createMailTools } from "./src/mail/mail-tools.js";
 
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8"));
+
 export default definePluginEntry({
   id: "yad",
   name: "Yad",
   description:
-    "Integration with Yandex Mail (IMAP/SMTP), Calendar (CalDAV), " +
-    "Disk (WebDAV), and Contacts (CardDAV). " +
+    `Yandex services plugin v${pkg.version}. ` +
+    "Mail (IMAP/SMTP), Calendar (CalDAV), Disk (WebDAV), Contacts (CardDAV). " +
     "All services use app passwords from id.yandex.ru/security/app-passwords.",
 
   register(api) {
