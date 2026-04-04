@@ -136,7 +136,7 @@ describe("yad_disk_download", () => {
 });
 
 describe("yad_disk_upload", () => {
-  it("calls upload with correct args", async () => {
+  it("uploads text content as UTF-8", async () => {
     vi.mocked(webdav.upload).mockResolvedValue(undefined);
 
     const tool = findTool("yad_disk_upload");
@@ -149,10 +149,100 @@ describe("yad_disk_upload", () => {
     expect(webdav.upload).toHaveBeenCalledWith(
       expect.objectContaining({ login: "user@yandex.ru" }),
       "/notes.txt",
-      expect.any(Buffer),
+      Buffer.from("my notes", "utf-8"),
       "text/plain",
     );
     expect(result.content[0].text).toContain("/notes.txt");
+  });
+
+  it("uploads base64 content as binary", async () => {
+    vi.mocked(webdav.upload).mockResolvedValue(undefined);
+    const b64 = Buffer.from("binary data here").toString("base64");
+
+    const tool = findTool("yad_disk_upload");
+    const result = await tool.execute("id", {
+      path: "/image.png",
+      content: b64,
+      encoding: "base64",
+    });
+
+    expect(webdav.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ login: "user@yandex.ru" }),
+      "/image.png",
+      Buffer.from(b64, "base64"),
+      "application/octet-stream",
+    );
+    expect(result.content[0].text).toContain("/image.png");
+  });
+
+  it("uploads from local file via source_path", async () => {
+    vi.mocked(webdav.upload).mockResolvedValue(undefined);
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+
+    const tmpFile = path.join(os.tmpdir(), `yad-test-${Date.now()}.bin`);
+    const fileContent = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG header
+    fs.writeFileSync(tmpFile, fileContent);
+
+    try {
+      const tool = findTool("yad_disk_upload");
+      const result = await tool.execute("id", {
+        path: "/photo.png",
+        source_path: tmpFile,
+        content_type: "image/png",
+      });
+
+      expect(webdav.upload).toHaveBeenCalledWith(
+        expect.objectContaining({ login: "user@yandex.ru" }),
+        "/photo.png",
+        fileContent,
+        "image/png",
+      );
+      expect(result.content[0].text).toContain("/photo.png");
+    } finally {
+      fs.unlinkSync(tmpFile);
+    }
+  });
+
+  it("defaults content_type to text/plain for text, octet-stream for binary", async () => {
+    vi.mocked(webdav.upload).mockResolvedValue(undefined);
+
+    const tool = findTool("yad_disk_upload");
+
+    await tool.execute("id", { path: "/a.txt", content: "hello" });
+    expect(webdav.upload).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "/a.txt",
+      expect.any(Buffer),
+      "text/plain",
+    );
+
+    await tool.execute("id", {
+      path: "/b.bin",
+      content: Buffer.from("data").toString("base64"),
+      encoding: "base64",
+    });
+    expect(webdav.upload).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "/b.bin",
+      expect.any(Buffer),
+      "application/octet-stream",
+    );
+  });
+
+  it("throws when neither content nor source_path provided", async () => {
+    const tool = findTool("yad_disk_upload");
+    await expect(tool.execute("id", { path: "/fail.txt" })).rejects.toThrow(
+      "Provide either content or source_path",
+    );
+  });
+
+  it("throws when source_path does not exist", async () => {
+    const tool = findTool("yad_disk_upload");
+    await expect(
+      tool.execute("id", { path: "/fail.txt", source_path: "/nonexistent/file.bin" }),
+    ).rejects.toThrow("File not found");
   });
 });
 

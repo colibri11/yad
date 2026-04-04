@@ -88,7 +88,7 @@ openclaw plugins install -l .
 | `yad_disk_list` | Список файлов и папок |
 | `yad_disk_info` | Свойства файла или папки |
 | `yad_disk_download` | Скачать файл (текст или base64) |
-| `yad_disk_upload` | Загрузить текстовый файл |
+| `yad_disk_upload` | Загрузить файл (текст, base64 или локальный файл) |
 | `yad_disk_mkdir` | Создать папку |
 | `yad_disk_delete` | Удалить файл или папку |
 | `yad_disk_move` | Переместить / переименовать |

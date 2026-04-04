@@ -95,7 +95,6 @@ export async function download(auth: WebDavAuth, path: string): Promise<Buffer> 
       Authorization: authHeader(auth),
       Accept: "*/*",
     },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
@@ -117,7 +116,6 @@ export async function upload(
       "Content-Type": contentType,
     },
     body: typeof body === "string" ? body : new Uint8Array(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`PUT ${path} failed: ${res.status} ${res.statusText}`);

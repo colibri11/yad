@@ -84,6 +84,80 @@ if (config.disk_app_password) {
     await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
     console.log(`    Создал, загрузил, скачал и удалил ${testFile}`);
   });
+
+  await run("upload base64 binary + download + verify", async () => {
+    const testDir = `/openclaw-test-${Date.now()}`;
+    const testFile = `${testDir}/binary.bin`;
+
+    // 256 bytes with all byte values 0x00–0xFF
+    const original = Buffer.alloc(256);
+    for (let i = 0; i < 256; i++) original[i] = i;
+    const b64 = original.toString("base64");
+
+    await findTool(tools, "yad_disk_mkdir").execute("t", { path: testDir });
+    await findTool(tools, "yad_disk_upload").execute("t", {
+      path: testFile,
+      content: b64,
+      encoding: "base64",
+      content_type: "application/octet-stream",
+    });
+
+    const r = await findTool(tools, "yad_disk_download").execute("t", { path: testFile });
+    const raw = r.content[0].text;
+    // Download returns binary as "[Binary file, N bytes, base64]:\n<base64>"
+    const b64Match = raw.match(/base64\]:\n(.+)$/s);
+    if (!b64Match) throw new Error("Expected base64 output from download");
+    const downloaded = Buffer.from(b64Match[1], "base64");
+
+    if (!downloaded.equals(original)) {
+      throw new Error(
+        `Binary mismatch: original=${original.length} bytes, downloaded=${downloaded.length} bytes`,
+      );
+    }
+    console.log(`    base64: ${original.length} bytes uploaded and verified ✓`);
+
+    await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
+  });
+
+  await run("upload local binary file + download + verify", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+
+    const testDir = `/openclaw-test-${Date.now()}`;
+    const testFile = `${testDir}/local.bin`;
+
+    // Create a 1 MB temp binary file with pseudo-random pattern
+    const tmpPath = path.join(os.tmpdir(), `yad-smoke-${Date.now()}.bin`);
+    const original = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < original.length; i++) original[i] = (i * 7 + 13) % 256;
+    fs.writeFileSync(tmpPath, original);
+
+    try {
+      await findTool(tools, "yad_disk_mkdir").execute("t", { path: testDir });
+      await findTool(tools, "yad_disk_upload").execute("t", {
+        path: testFile,
+        source_path: tmpPath,
+      });
+
+      const r = await findTool(tools, "yad_disk_download").execute("t", { path: testFile });
+      const raw = r.content[0].text;
+      const b64Match = raw.match(/base64\]:\n(.+)$/s);
+      if (!b64Match) throw new Error("Expected binary output from download");
+      const downloaded = Buffer.from(b64Match[1], "base64");
+
+      if (!downloaded.equals(original)) {
+        throw new Error(
+          `Binary mismatch: original=${original.length} bytes, downloaded=${downloaded.length} bytes`,
+        );
+      }
+      console.log(`    source_path: "${tmpPath}" → ${original.length} bytes uploaded and verified ✓`);
+
+      await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
+    } finally {
+      fs.unlinkSync(tmpPath);
+    }
+  });
 } else {
   console.log("📁 Яндекс.Диск — пропущен (YANDEX_DISK_PASSWORD не задан)");
 }
