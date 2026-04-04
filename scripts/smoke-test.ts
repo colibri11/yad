@@ -212,7 +212,9 @@ if (config.mail_app_password) {
       subject: marker,
       text: "IDLE smoke test — safe to delete",
     });
-    console.log(`    Письмо отправлено, жду обнаружения (таймаут 60с)... ${new Date().toLocaleTimeString()}`);
+    console.log(
+      `    Письмо отправлено, жду обнаружения (таймаут 60с)... ${new Date().toLocaleTimeString()}`,
+    );
 
     // Wait for IDLE to detect the new message (timeout 60s)
     const timeout = new Promise<never>((_, reject) =>
