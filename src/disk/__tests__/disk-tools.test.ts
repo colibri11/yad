@@ -6,6 +6,8 @@ vi.mock("../../common/webdav.js", () => ({
   download: vi.fn(),
   upload: vi.fn(),
   mkcol: vi.fn(),
+  mkcolRecursive: vi.fn(),
+  exists: vi.fn(),
   deleteResource: vi.fn(),
   move: vi.fn(),
   copy: vi.fn(),
@@ -247,7 +249,7 @@ describe("yad_disk_upload", () => {
 });
 
 describe("yad_disk_mkdir", () => {
-  it("calls mkcol", async () => {
+  it("calls mkcol for a single folder", async () => {
     vi.mocked(webdav.mkcol).mockResolvedValue(undefined);
 
     const tool = findTool("yad_disk_mkdir");
@@ -257,6 +259,28 @@ describe("yad_disk_mkdir", () => {
       expect.objectContaining({ login: "user@yandex.ru" }),
       "/new-folder",
     );
+  });
+
+  it("calls mkcolRecursive when recursive=true", async () => {
+    vi.mocked(webdav.mkcolRecursive).mockResolvedValue(["/a", "/a/b", "/a/b/c"]);
+
+    const tool = findTool("yad_disk_mkdir");
+    const result = await tool.execute("id", { path: "/a/b/c", recursive: true });
+
+    expect(webdav.mkcolRecursive).toHaveBeenCalledWith(
+      expect.objectContaining({ login: "user@yandex.ru" }),
+      "/a/b/c",
+    );
+    expect(result.content[0].text).toContain("/a, /a/b, /a/b/c");
+  });
+
+  it("reports already exists when recursive creates nothing", async () => {
+    vi.mocked(webdav.mkcolRecursive).mockResolvedValue([]);
+
+    const tool = findTool("yad_disk_mkdir");
+    const result = await tool.execute("id", { path: "/existing", recursive: true });
+
+    expect(result.content[0].text).toContain("already exists");
   });
 });
 

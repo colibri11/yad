@@ -122,6 +122,22 @@ export async function upload(
   }
 }
 
+/** Check if a resource exists (PROPFIND with Depth 0, returns false on 404) */
+export async function exists(auth: WebDavAuth, path: string): Promise<boolean> {
+  const res = await fetch(fullUrl(path), {
+    method: "PROPFIND",
+    headers: {
+      Authorization: authHeader(auth),
+      Depth: "0",
+      Accept: "*/*",
+    },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (res.status === 404) return false;
+  if (res.ok || res.status === 207) return true;
+  throw new Error(`PROPFIND ${path} failed: ${res.status} ${res.statusText}`);
+}
+
 /** MKCOL — create folder */
 export async function mkcol(auth: WebDavAuth, path: string): Promise<void> {
   const res = await fetch(fullUrl(path), {
@@ -135,6 +151,22 @@ export async function mkcol(auth: WebDavAuth, path: string): Promise<void> {
   if (!res.ok) {
     throw new Error(`MKCOL ${path} failed: ${res.status} ${res.statusText}`);
   }
+}
+
+/** MKCOL recursive — create folder and all missing parents (like mkdir -p) */
+export async function mkcolRecursive(auth: WebDavAuth, path: string): Promise<string[]> {
+  const segments = path.split("/").filter(Boolean);
+  const created: string[] = [];
+
+  let current = "";
+  for (const seg of segments) {
+    current += `/${seg}`;
+    if (await exists(auth, current)) continue;
+    await mkcol(auth, current);
+    created.push(current);
+  }
+
+  return created;
 }
 
 /** DELETE — delete file or folder */

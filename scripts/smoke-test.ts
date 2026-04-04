@@ -85,6 +85,56 @@ if (config.disk_app_password) {
     console.log(`    Создал, загрузил, скачал и удалил ${testFile}`);
   });
 
+  await run("mkdir recursive + upload + verify + delete", async () => {
+    const ts = Date.now();
+    const deepPath = `/openclaw-test-${ts}/level-1/level-2/level-3`;
+    const testFile = `${deepPath}/deep.txt`;
+
+    // Create nested folders in one call
+    const r = await findTool(tools, "yad_disk_mkdir").execute("t", {
+      path: deepPath,
+      recursive: true,
+    });
+    const text = r.content[0].text;
+    console.log(`    ${text}`);
+
+    // Verify each level exists
+    for (const level of [
+      `/openclaw-test-${ts}`,
+      `/openclaw-test-${ts}/level-1`,
+      `/openclaw-test-${ts}/level-1/level-2`,
+      deepPath,
+    ]) {
+      const info = await findTool(tools, "yad_disk_info").execute("t", { path: level });
+      const data = JSON.parse(info.content[0].text);
+      if (data.type !== "folder") throw new Error(`${level} is not a folder`);
+    }
+    console.log("    Все 4 уровня существуют ✓");
+
+    // Upload into the deepest folder
+    await findTool(tools, "yad_disk_upload").execute("t", {
+      path: testFile,
+      content: "Deep nested file",
+    });
+
+    const dl = await findTool(tools, "yad_disk_download").execute("t", { path: testFile });
+    if (!dl.content[0].text.includes("Deep nested")) throw new Error("Content mismatch");
+    console.log("    Upload в глубокую папку ✓");
+
+    // Calling recursive on existing path should report "already exists"
+    const r2 = await findTool(tools, "yad_disk_mkdir").execute("t", {
+      path: deepPath,
+      recursive: true,
+    });
+    if (!r2.content[0].text.includes("already exists")) {
+      throw new Error("Expected 'already exists' for existing path");
+    }
+    console.log("    Повторный recursive → already exists ✓");
+
+    // Cleanup
+    await findTool(tools, "yad_disk_delete").execute("t", { path: `/openclaw-test-${ts}` });
+  });
+
   await run("upload base64 binary + download + verify", async () => {
     const testDir = `/openclaw-test-${Date.now()}`;
     const testFile = `${testDir}/binary.bin`;
@@ -151,7 +201,9 @@ if (config.disk_app_password) {
           `Binary mismatch: original=${original.length} bytes, downloaded=${downloaded.length} bytes`,
         );
       }
-      console.log(`    source_path: "${tmpPath}" → ${original.length} bytes uploaded and verified ✓`);
+      console.log(
+        `    source_path: "${tmpPath}" → ${original.length} bytes uploaded and verified ✓`,
+      );
 
       await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
     } finally {

@@ -169,14 +169,29 @@ export function createDiskTools(config: YandexPluginConfig) {
     },
     {
       name: "yad_disk_mkdir",
-      description: "Create a folder in Yandex.Disk.",
+      description:
+        "Create a folder in Yandex.Disk. " +
+        "Set recursive=true to create all missing parent folders (like mkdir -p). " +
+        "Without recursive, the parent folder must already exist or the call will fail with 409 Conflict.",
       parameters: Type.Object(
         {
           path: Type.String({ description: "Path for the new folder, e.g. /Projects/new-folder" }),
+          recursive: Type.Optional(
+            Type.Boolean({
+              description: "Create parent folders if they don't exist (default: false)",
+            }),
+          ),
         },
         { additionalProperties: false },
       ),
-      async execute(_id: string, params: { path: string }) {
+      async execute(_id: string, params: { path: string; recursive?: boolean }) {
+        if (params.recursive) {
+          const created = await webdav.mkcolRecursive(auth(), params.path);
+          if (created.length === 0) {
+            return textResult(`Folder already exists: ${params.path}`);
+          }
+          return textResult(`Folders created: ${created.join(", ")}`);
+        }
         await webdav.mkcol(auth(), params.path);
         return textResult(`Folder created: ${params.path}`);
       },
