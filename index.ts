@@ -5,6 +5,7 @@ import { createCalendarTools } from "./src/calendar/calendar-tools.js";
 import type { YandexPluginConfig } from "./src/common/types.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
+import { startIdleWatcher } from "./src/mail/idle-watcher.js";
 import { createMailTools } from "./src/mail/mail-tools.js";
 
 export default definePluginEntry({
@@ -51,6 +52,46 @@ export default definePluginEntry({
     if (config.contacts_app_password) {
       registerTools(createContactsTools(config));
       api.logger.info("Yandex Contacts tools registered (CardDAV)");
+    }
+
+    // IMAP IDLE watcher — opt-in via mail_idle_agent_id
+    if (config.mail_app_password && config.mail_idle_agent_id) {
+      const agentId = config.mail_idle_agent_id;
+      const folder = config.mail_idle_folder || "INBOX";
+      let watcherHandle: { stop: () => Promise<void> } | null = null;
+
+      api.registerService({
+        id: "yad-mail-idle",
+        async start(ctx) {
+          watcherHandle = startIdleWatcher({
+            config,
+            logger: ctx.logger,
+            folder,
+            notifyAgent: async (envelope) => {
+              const message = [
+                `New email received in ${envelope.folder}.`,
+                `From: ${envelope.from}`,
+                `Subject: ${envelope.subject}`,
+                `Date: ${envelope.date}`,
+                `UID: ${envelope.uid}`,
+                "",
+                `Read this email using yad_mail_read (uid: ${envelope.uid}), extract and process all attachments.`,
+              ].join("\n");
+
+              await api.runtime.subagent.run({
+                sessionKey: `agent:${agentId}:subagent:mail-idle`,
+                message,
+              });
+            },
+          });
+        },
+        async stop() {
+          await watcherHandle?.stop();
+          watcherHandle = null;
+        },
+      });
+
+      api.logger.info(`IDLE watcher registered → agent "${agentId}", folder "${folder}"`);
     }
 
     const enabled = [

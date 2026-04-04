@@ -146,7 +146,8 @@ export function createMailTools(config: YandexPluginConfig) {
               date: parsed.date?.toISOString(),
               text: parsed.text || undefined,
               html: parsed.html || undefined,
-              attachments: parsed.attachments?.map((a) => ({
+              attachments: parsed.attachments?.map((a, i) => ({
+                index: i,
                 filename: a.filename,
                 contentType: a.contentType,
                 size: a.size,
@@ -232,18 +233,30 @@ export function createMailTools(config: YandexPluginConfig) {
       name: "yad_mail_get_attachment",
       description:
         "Download an email attachment by message UID and filename. " +
+        "Use index to disambiguate when multiple attachments share the same filename. " +
         "Returns content as text for text-based types, or base64 for binary.",
       parameters: Type.Object(
         {
           uid: Type.Integer({ description: "Message UID" }),
-          filename: Type.String({ description: "Attachment filename (as returned by yad_mail_read)" }),
+          filename: Type.String({
+            description: "Attachment filename (as returned by yad_mail_read)",
+          }),
+          index: Type.Optional(
+            Type.Integer({
+              description:
+                "Attachment index (0-based, as returned by yad_mail_read). Use when multiple attachments have the same filename.",
+            }),
+          ),
           folder: Type.Optional(
             Type.String({ description: 'Mailbox folder, default "INBOX"', default: "INBOX" }),
           ),
         },
         { additionalProperties: false },
       ),
-      async execute(_id: string, params: { uid: number; filename: string; folder?: string }) {
+      async execute(
+        _id: string,
+        params: { uid: number; filename: string; index?: number; folder?: string },
+      ) {
         const client = createImapClient(config);
         try {
           await client.connect();
@@ -257,12 +270,13 @@ export function createMailTools(config: YandexPluginConfig) {
               throw new Error(`Message UID ${params.uid} not found`);
             }
             const parsed = await simpleParser(message.source as Buffer);
-            const attachment = parsed.attachments?.find((a) => a.filename === params.filename);
+            const attachment =
+              params.index != null
+                ? parsed.attachments?.[params.index]
+                : parsed.attachments?.find((a) => a.filename === params.filename);
             if (!attachment) {
               const available = parsed.attachments?.map((a) => a.filename).join(", ") || "none";
-              throw new Error(
-                `Attachment "${params.filename}" not found. Available: ${available}`,
-              );
+              throw new Error(`Attachment "${params.filename}" not found. Available: ${available}`);
             }
             const isText = attachment.contentType.startsWith("text/");
             return jsonResult({

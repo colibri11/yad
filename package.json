@@ -1,6 +1,6 @@
 {
   "name": "yad",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "OpenClaw plugin for Yandex services: Mail, Calendar, Disk, Contacts",
   "type": "module",
   "openclaw": {
@@ -23,6 +23,7 @@
     "@biomejs/biome": "2.4.10",
     "@types/mailparser": "^3.4.6",
     "@types/nodemailer": "^6.4.0",
+    "openclaw": "^2026.4.2",
     "tsx": "^4.21.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.2"

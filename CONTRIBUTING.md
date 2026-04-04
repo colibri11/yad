@@ -39,7 +39,9 @@ src/
     ical.ts               — парсер iCalendar (parseVEvent, formatDT)
     vcard.ts              — парсер vCard (parseVCard)
   disk/                   — инструменты Яндекс.Диска (WebDAV)
-  mail/                   — инструменты Яндекс.Почты (IMAP/SMTP)
+  mail/
+    mail-tools.ts         — инструменты Яндекс.Почты (IMAP/SMTP)
+    idle-watcher.ts       — IMAP IDLE watcher для real-time мониторинга входящей почты
   calendar/               — инструменты Яндекс.Календаря (CalDAV)
   contacts/               — инструменты Яндекс.Контактов (CardDAV)
 ```
@@ -76,6 +78,19 @@ src/
 - **WebDAV-клиент** — мок `fetch` через `vi.stubGlobal`
 - **CardDAV-клиент** — мок `fetch` через `vi.stubGlobal` (аналогично WebDAV)
 - **Tool execute()** — мок внешних библиотек (`tsdav`, `imapflow`, `nodemailer`, `carddav`) через `vi.mock` + `vi.hoisted`
+
+## Фоновые сервисы
+
+Помимо tool-ов, плагин может регистрировать фоновые сервисы через `api.registerService()`. Пример — IMAP IDLE watcher (`src/mail/idle-watcher.ts`), который держит persistent-соединение и уведомляет агента о новых письмах.
+
+Сервис активируется opt-in через конфиг (наличие `mail_idle_agent_id`). Без конфига сервис не запускается и ничего не ломает.
+
+При создании нового сервиса:
+1. Реализуйте модуль с функцией, возвращающей `{ stop: () => Promise<void> }`
+2. Зарегистрируйте через `api.registerService({ id, start, stop })` в `index.ts`
+3. Активацию привяжите к наличию конфиг-поля (opt-in)
+4. Реализуйте auto-reconnect для persistent-соединений
+5. Добавьте конфиг-поля в `openclaw.plugin.json` и `YandexPluginConfig`
 
 ## Линтинг
 

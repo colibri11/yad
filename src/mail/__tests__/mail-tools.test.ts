@@ -192,13 +192,47 @@ describe("yad_mail_get_attachment", () => {
     expect(data.content).toBe(bin.toString("base64"));
   });
 
+  it("selects attachment by index when duplicates exist", async () => {
+    mockFetchOne.mockResolvedValue({
+      source: Buffer.from("raw email"),
+    });
+    vi.mocked(simpleParser).mockResolvedValue({
+      attachments: [
+        {
+          filename: "doc.pdf",
+          contentType: "application/pdf",
+          size: 10,
+          content: Buffer.from("first"),
+        },
+        {
+          filename: "doc.pdf",
+          contentType: "application/pdf",
+          size: 20,
+          content: Buffer.from("second"),
+        },
+      ],
+    } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
+
+    const tool = findTool("yad_mail_get_attachment");
+    const result = await tool.execute("id", { uid: 105, filename: "doc.pdf", index: 1 });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(data.size).toBe(20);
+    expect(data.content).toBe(Buffer.from("second").toString("base64"));
+  });
+
   it("throws when attachment not found", async () => {
     mockFetchOne.mockResolvedValue({
       source: Buffer.from("raw email"),
     });
     vi.mocked(simpleParser).mockResolvedValue({
       attachments: [
-        { filename: "other.pdf", contentType: "application/pdf", size: 100, content: Buffer.from("") },
+        {
+          filename: "other.pdf",
+          contentType: "application/pdf",
+          size: 100,
+          content: Buffer.from(""),
+        },
       ],
     } as ReturnType<typeof simpleParser> extends Promise<infer T> ? T : never);
 

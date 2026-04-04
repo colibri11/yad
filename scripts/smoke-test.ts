@@ -103,10 +103,14 @@ if (config.mail_app_password) {
 
   await run("get attachment", async () => {
     // Читаем последние письма и ищем первое с вложением
-    const listR = await findTool(tools, "yad_mail_list").execute("t", { folder: "INBOX", limit: 20 });
+    const listR = await findTool(tools, "yad_mail_list").execute("t", {
+      folder: "INBOX",
+      limit: 20,
+    });
     const listData = JSON.parse(listR.content[0].text);
 
-    let attachment: { filename: string; contentType: string; size: number } | null = null;
+    let attachment: { index: number; filename: string; contentType: string; size: number } | null =
+      null;
     let msgUid: number | null = null;
 
     for (const msg of listData.messages) {
@@ -124,7 +128,9 @@ if (config.mail_app_password) {
       return;
     }
 
-    console.log(`    Письмо UID ${msgUid}, вложение: ${attachment.filename} (${attachment.contentType}, ${attachment.size} bytes)`);
+    console.log(
+      `    Письмо UID ${msgUid}, вложение: ${attachment.filename} (${attachment.contentType}, ${attachment.size} bytes)`,
+    );
 
     const r = await findTool(tools, "yad_mail_get_attachment").execute("t", {
       uid: msgUid,
@@ -141,7 +147,20 @@ if (config.mail_app_password) {
     if (data.encoding !== "utf-8" && data.encoding !== "base64") {
       throw new Error(`Unexpected encoding: ${data.encoding}`);
     }
-    console.log(`    Содержимое получено: encoding=${data.encoding}, length=${data.content.length}`);
+    console.log(`    По filename: encoding=${data.encoding}, length=${data.content.length}`);
+
+    // Тот же attachment по index
+    const r2 = await findTool(tools, "yad_mail_get_attachment").execute("t", {
+      uid: msgUid,
+      filename: attachment.filename,
+      index: attachment.index,
+    });
+    const data2 = JSON.parse(r2.content[0].text);
+
+    if (data2.content !== data.content) {
+      throw new Error("Content mismatch between filename and index lookups");
+    }
+    console.log(`    По index=${attachment.index}: совпадает ✓`);
   });
 
   await run("search recent", async () => {
@@ -149,6 +168,76 @@ if (config.mail_app_password) {
     const r = await findTool(tools, "yad_mail_search").execute("t", { since, limit: 3 });
     const data = JSON.parse(r.content[0].text);
     console.log(`    Найдено за неделю: ${data.totalMatches}`);
+  });
+
+  await run("IDLE watcher (self-send → detect → cleanup)", async () => {
+    const { startIdleWatcher } = await import("../src/mail/idle-watcher.js");
+    const { resolveLogin } = await import("../src/common/types.js");
+    const marker = `smoke-idle-${Date.now()}`;
+    const selfAddress = resolveLogin(config.login);
+
+    // Start IDLE watcher with a promise that resolves on new mail
+    let resolveEnvelope: (v: import("../src/mail/idle-watcher.js").MailEnvelope) => void;
+    const envelopePromise = new Promise<import("../src/mail/idle-watcher.js").MailEnvelope>(
+      (resolve) => {
+        resolveEnvelope = resolve;
+      },
+    );
+
+    const logger = {
+      debug: () => {},
+      info: (msg: string) => console.log(`    [IDLE] ${msg}`),
+      warn: (msg: string) => console.log(`    [IDLE] ⚠ ${msg}`),
+      error: (msg: string) => console.log(`    [IDLE] ✗ ${msg}`),
+    };
+
+    const watcher = startIdleWatcher({
+      config,
+      logger,
+      folder: "INBOX",
+      notifyAgent: async (envelope) => {
+        if (envelope.subject === marker) {
+          resolveEnvelope(envelope);
+        }
+      },
+    });
+
+    // Give IDLE time to establish connection and enter IDLE mode
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log("    IDLE подключён, отправляю письмо...");
+
+    // Send email to self
+    await findTool(tools, "yad_mail_send").execute("t", {
+      to: selfAddress,
+      subject: marker,
+      text: "IDLE smoke test — safe to delete",
+    });
+    console.log(`    Письмо отправлено, жду обнаружения (таймаут 60с)... ${new Date().toLocaleTimeString()}`);
+
+    // Wait for IDLE to detect the new message (timeout 60s)
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("IDLE не обнаружил письмо за 60 секунд")), 60_000),
+    );
+    const envelope = await Promise.race([envelopePromise, timeout]);
+
+    console.log(`    Обнаружено: UID=${envelope.uid}, subject="${envelope.subject}"`);
+    if (envelope.subject !== marker) throw new Error("Subject mismatch");
+    if (!envelope.from.includes(selfAddress)) throw new Error("From mismatch");
+
+    // Stop IDLE watcher
+    await watcher.stop();
+    console.log("    IDLE watcher остановлен");
+
+    // Cleanup: delete the test email
+    const searchR = await findTool(tools, "yad_mail_search").execute("t", {
+      subject: marker,
+      limit: 5,
+    });
+    const searchData = JSON.parse(searchR.content[0].text);
+    // Mark as deleted via IMAP (no delete tool, so just log)
+    if (searchData.totalMatches > 0) {
+      console.log(`    Тестовое письмо UID=${envelope.uid} оставлено (удалите вручную)`);
+    }
   });
 } else {
   console.log("\n📧 Яндекс.Почта — пропущена (YANDEX_MAIL_PASSWORD не задан)");
@@ -315,3 +404,4 @@ if (config.contacts_app_password) {
 }
 
 console.log("\n🏁 Smoke test завершён.\n");
+process.exit(0);

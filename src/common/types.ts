@@ -4,6 +4,8 @@ export interface YandexPluginConfig {
   calendar_app_password?: string;
   disk_app_password?: string;
   contacts_app_password?: string;
+  mail_idle_agent_id?: string;
+  mail_idle_folder?: string;
 }
 
 export function resolveLogin(login: string): string {

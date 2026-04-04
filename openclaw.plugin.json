@@ -53,6 +53,14 @@
       "contacts_app_password": {
         "type": ["string", "object"],
         "description": "App password for Contacts (type: 'Контакты')"
+      },
+      "mail_idle_agent_id": {
+        "type": "string",
+        "description": "Agent ID to handle incoming mail via IMAP IDLE. Set to enable real-time mail monitoring."
+      },
+      "mail_idle_folder": {
+        "type": "string",
+        "description": "IMAP folder to monitor (default: INBOX)"
       }
     },
     "required": ["login"]
@@ -86,6 +94,16 @@
       "help": "Create at id.yandex.ru/security/app-passwords, type 'Контакты'",
       "sensitive": true,
       "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    },
+    "mail_idle_agent_id": {
+      "label": "Mail IDLE Agent",
+      "help": "Agent that processes incoming emails in real-time. Leave empty to disable.",
+      "placeholder": "mail-processor"
+    },
+    "mail_idle_folder": {
+      "label": "IDLE Folder",
+      "help": "IMAP folder to monitor for new emails",
+      "placeholder": "INBOX"
     }
   }
 }
