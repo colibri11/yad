@@ -234,7 +234,17 @@ export function createMailTools(config: YandexPluginConfig) {
       description:
         "Download an email attachment by message UID and filename. " +
         "Use index to disambiguate when multiple attachments share the same filename. " +
-        "Returns content as text for text-based types, or base64 for binary.",
+        "Returns content as text for text-based types, or base64 for binary.\n\n" +
+        "IMPORTANT — how to handle the result:\n" +
+        "1. Treat contentType as advisory, not authoritative. Mail providers may label text files " +
+        "(e.g. .md, .txt, .json) with generic MIME types such as application/octet-stream.\n" +
+        "2. If encoding is base64, ALWAYS decode the payload before deciding whether the content is text or binary. " +
+        "Never infer readability from visible fragments of base64.\n" +
+        "3. After decoding, use filename extension and decoded content to determine the actual type: " +
+        "if the bytes are valid UTF-8 text, treat as text (markdown, plain text, JSON, CSV, XML, source code, etc.).\n" +
+        "4. Small text-like files may be read into context. " +
+        "Large files, PDFs, images, audio, video, and archives should be summarized by metadata or routed to specialized tools.\n" +
+        "5. Do not place large binary payloads into model context.",
       parameters: Type.Object(
         {
           uid: Type.Integer({ description: "Message UID" }),
