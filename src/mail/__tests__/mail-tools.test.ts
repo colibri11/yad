@@ -10,6 +10,9 @@ const {
   mockGetMailboxLock,
   mockRelease,
   mockSendMail,
+  mockMessageDelete,
+  mockMessageFlagsAdd,
+  mockMessageFlagsRemove,
 } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockSearch: vi.fn(),
@@ -19,6 +22,9 @@ const {
   mockGetMailboxLock: vi.fn(),
   mockRelease: vi.fn(),
   mockSendMail: vi.fn(),
+  mockMessageDelete: vi.fn(),
+  mockMessageFlagsAdd: vi.fn(),
+  mockMessageFlagsRemove: vi.fn(),
 }));
 
 vi.mock("imapflow", () => {
@@ -29,6 +35,9 @@ vi.mock("imapflow", () => {
     fetch = mockFetch;
     fetchOne = mockFetchOne;
     search = mockSearch;
+    messageDelete = mockMessageDelete;
+    messageFlagsAdd = mockMessageFlagsAdd;
+    messageFlagsRemove = mockMessageFlagsRemove;
     mailbox = { exists: 5 };
   }
   return { ImapFlow: MockImapFlow };
@@ -319,5 +328,77 @@ describe("yad_mail_search", () => {
 
     expect(data.totalMatches).toBe(0);
     expect(data.messages).toHaveLength(0);
+  });
+});
+
+describe("yad_mail_delete", () => {
+  it("deletes messages and returns confirmation", async () => {
+    mockMessageDelete.mockResolvedValue(true);
+
+    const tool = findTool("yad_mail_delete");
+    const result = await tool.execute("id", { uids: [10, 11, 12] });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(mockMessageDelete).toHaveBeenCalledWith("10,11,12", { uid: true });
+    expect(data.folder).toBe("INBOX");
+    expect(data.deleted).toEqual([10, 11, 12]);
+    expect(data.failed).toEqual([]);
+    expect(mockConnect).toHaveBeenCalledOnce();
+    expect(mockLogout).toHaveBeenCalledOnce();
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it("reports failure when messageDelete returns false", async () => {
+    mockMessageDelete.mockResolvedValue(false);
+
+    const tool = findTool("yad_mail_delete");
+    const result = await tool.execute("id", { folder: "Trash", uids: [99] });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(data.folder).toBe("Trash");
+    expect(data.deleted).toEqual([]);
+    expect(data.failed).toEqual([99]);
+  });
+});
+
+describe("yad_mail_mark", () => {
+  it("marks messages as read", async () => {
+    mockMessageFlagsAdd.mockResolvedValue(true);
+
+    const tool = findTool("yad_mail_mark");
+    const result = await tool.execute("id", { uids: [20, 21], seen: true });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(mockMessageFlagsAdd).toHaveBeenCalledWith("20,21", ["\\Seen"], { uid: true });
+    expect(data.folder).toBe("INBOX");
+    expect(data.updated).toEqual([20, 21]);
+    expect(data.seen).toBe(true);
+    expect(data.failed).toEqual([]);
+    expect(mockConnect).toHaveBeenCalledOnce();
+    expect(mockLogout).toHaveBeenCalledOnce();
+  });
+
+  it("marks messages as unread", async () => {
+    mockMessageFlagsRemove.mockResolvedValue(true);
+
+    const tool = findTool("yad_mail_mark");
+    const result = await tool.execute("id", { uids: [30], seen: false });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(mockMessageFlagsRemove).toHaveBeenCalledWith("30", ["\\Seen"], { uid: true });
+    expect(data.updated).toEqual([30]);
+    expect(data.seen).toBe(false);
+    expect(data.failed).toEqual([]);
+  });
+
+  it("reports failure when flag operation returns false", async () => {
+    mockMessageFlagsAdd.mockResolvedValue(false);
+
+    const tool = findTool("yad_mail_mark");
+    const result = await tool.execute("id", { uids: [40, 41], seen: true });
+    const data = JSON.parse(result.content[0].text);
+
+    expect(data.updated).toEqual([]);
+    expect(data.failed).toEqual([40, 41]);
   });
 });

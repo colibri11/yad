@@ -135,6 +135,59 @@ if (config.disk_app_password) {
     await findTool(tools, "yad_disk_delete").execute("t", { path: `/openclaw-test-${ts}` });
   });
 
+  await run("mkdir recursive + immediate source_path upload (backup scenario)", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+
+    const ts = Date.now();
+    const remotePath = `/openclaw-test-${ts}/backups/memorybox/2026-04`;
+    const remoteFile = `${remotePath}/memorybox-2026-04-04T072305.sql.gz.age`;
+
+    // Create a temp binary file simulating an encrypted backup
+    const tmpPath = path.join(os.tmpdir(), `yad-backup-${ts}.sql.gz.age`);
+    const original = Buffer.alloc(4096);
+    for (let i = 0; i < original.length; i++) original[i] = (i * 13 + 7) % 256;
+    fs.writeFileSync(tmpPath, original);
+
+    try {
+      // mkdir recursive
+      await findTool(tools, "yad_disk_mkdir").execute("t", {
+        path: remotePath,
+        recursive: true,
+      });
+      console.log(`    mkdir recursive: ${remotePath}`);
+
+      // Immediate upload via source_path — this is what the agent does
+      await findTool(tools, "yad_disk_upload").execute("t", {
+        path: remoteFile,
+        source_path: tmpPath,
+      });
+      console.log(`    upload: ${remoteFile}`);
+
+      // Verify
+      const r = await findTool(tools, "yad_disk_download").execute("t", { path: remoteFile });
+      const raw = r.content[0].text;
+      const b64Match = raw.match(/base64\]:\n(.+)$/s);
+      if (!b64Match) throw new Error("Expected binary output from download");
+      const downloaded = Buffer.from(b64Match[1], "base64");
+
+      if (!downloaded.equals(original)) {
+        throw new Error(
+          `Binary mismatch: original=${original.length} bytes, downloaded=${downloaded.length} bytes`,
+        );
+      }
+      console.log(`    download + verify: ${original.length} bytes ✓`);
+
+      // Cleanup
+      await findTool(tools, "yad_disk_delete").execute("t", {
+        path: `/openclaw-test-${ts}`,
+      });
+    } finally {
+      fs.unlinkSync(tmpPath);
+    }
+  });
+
   await run("upload base64 binary + download + verify", async () => {
     const testDir = `/openclaw-test-${Date.now()}`;
     const testFile = `${testDir}/binary.bin`;
@@ -356,16 +409,66 @@ if (config.mail_app_password) {
     await watcher.stop();
     console.log("    IDLE watcher остановлен");
 
-    // Cleanup: delete the test email
-    const searchR = await findTool(tools, "yad_mail_search").execute("t", {
+    // Cleanup: delete the test email via yad_mail_delete
+    await findTool(tools, "yad_mail_delete").execute("t", { uids: [envelope.uid] });
+    console.log(`    Тестовое письмо UID=${envelope.uid} удалено`);
+  });
+  await run("delete + mark (send → mark unread → mark read → delete)", async () => {
+    const { resolveLogin } = await import("../src/common/types.js");
+    const selfAddress = resolveLogin(config.login);
+    const marker = `smoke-delete-mark-${Date.now()}`;
+
+    // Send a test email
+    await findTool(tools, "yad_mail_send").execute("t", {
+      to: selfAddress,
       subject: marker,
-      limit: 5,
+      text: "Test for delete + mark tools",
     });
-    const searchData = JSON.parse(searchR.content[0].text);
-    // Mark as deleted via IMAP (no delete tool, so just log)
-    if (searchData.totalMatches > 0) {
-      console.log(`    Тестовое письмо UID=${envelope.uid} оставлено (удалите вручную)`);
+    console.log("    Письмо отправлено");
+
+    // Wait for delivery, find via list (search has fetch issues with fresh UIDs)
+    let uid: number | undefined;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const listR = await findTool(tools, "yad_mail_list").execute("t", {
+        folder: "INBOX",
+        limit: 10,
+      });
+      const listData = JSON.parse(listR.content[0].text);
+      const found = listData.messages.find(
+        (m: { subject: string; uid: number }) => m.subject === marker,
+      );
+      if (found) {
+        uid = found.uid;
+        break;
+      }
     }
+    if (!uid) throw new Error("Test email not delivered after 30s");
+    console.log(`    Найдено: UID=${uid}`);
+
+    // Mark as unread
+    const markUnread = await findTool(tools, "yad_mail_mark").execute("t", {
+      uids: [uid],
+      seen: false,
+    });
+    const unreadData = JSON.parse(markUnread.content[0].text);
+    if (unreadData.updated.length === 0) throw new Error("Mark unread failed");
+    console.log("    Mark unread ✓");
+
+    // Mark as read
+    const markRead = await findTool(tools, "yad_mail_mark").execute("t", {
+      uids: [uid],
+      seen: true,
+    });
+    const readData = JSON.parse(markRead.content[0].text);
+    if (readData.updated.length === 0) throw new Error("Mark read failed");
+    console.log("    Mark read ✓");
+
+    // Delete
+    const delR = await findTool(tools, "yad_mail_delete").execute("t", { uids: [uid] });
+    const delData = JSON.parse(delR.content[0].text);
+    if (delData.deleted.length === 0) throw new Error("Delete failed");
+    console.log(`    Delete UID=${uid} ✓`);
   });
 } else {
   console.log("\n📧 Яндекс.Почта — пропущена (YANDEX_MAIL_PASSWORD не задан)");

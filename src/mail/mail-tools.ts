@@ -5,6 +5,29 @@ import nodemailer from "nodemailer";
 import type { YandexPluginConfig } from "../common/types.js";
 import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
 
+/**
+ * Fetch a single message by UID with fallback to sequence-number-based fetch.
+ * Yandex IMAP's UID FETCH is unreliable for recently-delivered or self-sent messages:
+ * the server's search index sees the UID but UID FETCH returns nothing.
+ * Sequence-number-based FETCH works reliably, so we fall back to it.
+ */
+async function fetchOneByUid(
+  client: ImapFlow,
+  uid: number,
+  query: Record<string, unknown>,
+): Promise<ReturnType<ImapFlow["fetchOne"]>> {
+  // Try UID-based fetch first
+  const result = await client.fetchOne(String(uid), { ...query, uid: true } as Parameters<
+    ImapFlow["fetchOne"]
+  >[1]);
+  if (result) return result;
+
+  // Fallback: find sequence number via SEARCH UID, then fetch by sequence number
+  const seqs = await client.search({ uid: String(uid) });
+  if (!seqs || !Array.isArray(seqs) || seqs.length === 0) return false;
+  return client.fetchOne(String(seqs[0]), query as Parameters<ImapFlow["fetchOne"]>[1]);
+}
+
 function createImapClient(config: YandexPluginConfig): ImapFlow {
   return new ImapFlow({
     host: "imap.yandex.ru",
@@ -108,8 +131,9 @@ export function createMailTools(config: YandexPluginConfig) {
     {
       name: "yad_mail_read",
       description:
-        "Read a specific email message by sequence number or UID. " +
-        "Returns the full message with headers and text/HTML body.",
+        "Read a specific email message by UID. " +
+        "Returns the full message with headers, text/HTML body, and attachment list. " +
+        "Use UIDs from yad_mail_list or yad_mail_search results.",
       parameters: Type.Object(
         {
           uid: Type.Integer({ description: "Message UID" }),
@@ -125,10 +149,7 @@ export function createMailTools(config: YandexPluginConfig) {
           await client.connect();
           const lock = await client.getMailboxLock(params.folder || "INBOX");
           try {
-            const message = await client.fetchOne(String(params.uid), {
-              source: true,
-              uid: true,
-            });
+            const message = await fetchOneByUid(client, params.uid, { source: true });
             if (!message || !("source" in message) || !message.source) {
               throw new Error(`Message UID ${params.uid} not found`);
             }
@@ -272,10 +293,7 @@ export function createMailTools(config: YandexPluginConfig) {
           await client.connect();
           const lock = await client.getMailboxLock(params.folder || "INBOX");
           try {
-            const message = await client.fetchOne(String(params.uid), {
-              source: true,
-              uid: true,
-            });
+            const message = await fetchOneByUid(client, params.uid, { source: true });
             if (!message || !("source" in message) || !message.source) {
               throw new Error(`Message UID ${params.uid} not found`);
             }
@@ -297,6 +315,90 @@ export function createMailTools(config: YandexPluginConfig) {
               content: isText
                 ? attachment.content.toString("utf-8")
                 : attachment.content.toString("base64"),
+            });
+          } finally {
+            lock.release();
+          }
+        } finally {
+          await client.logout();
+        }
+      },
+    },
+    {
+      name: "yad_mail_delete",
+      description:
+        "Delete emails from a Yandex.Mail folder. DESTRUCTIVE — messages are permanently removed and cannot be recovered. " +
+        "Accepts an array of UIDs to delete in a single call (up to 100). " +
+        "Non-existent UIDs are silently ignored.",
+      parameters: Type.Object(
+        {
+          folder: Type.Optional(
+            Type.String({ description: 'Mailbox folder, default "INBOX"', default: "INBOX" }),
+          ),
+          uids: Type.Array(Type.Integer({ description: "Message UID" }), {
+            description: "Message UIDs to delete (1–100)",
+            minItems: 1,
+            maxItems: 100,
+          }),
+        },
+        { additionalProperties: false },
+      ),
+      async execute(_id: string, params: { folder?: string; uids: number[] }) {
+        const client = createImapClient(config);
+        try {
+          await client.connect();
+          const lock = await client.getMailboxLock(params.folder || "INBOX");
+          try {
+            const uidRange = params.uids.join(",");
+            const deleted = await client.messageDelete(uidRange, { uid: true });
+            return jsonResult({
+              folder: params.folder || "INBOX",
+              deleted: deleted ? params.uids : [],
+              failed: deleted ? [] : params.uids,
+            });
+          } finally {
+            lock.release();
+          }
+        } finally {
+          await client.logout();
+        }
+      },
+    },
+    {
+      name: "yad_mail_mark",
+      description:
+        "Change the read/unread status of emails in a Yandex.Mail folder. " +
+        "Set seen=true to mark as read, seen=false to mark as unread. " +
+        "Accepts an array of UIDs (up to 100). Non-existent UIDs are silently ignored.",
+      parameters: Type.Object(
+        {
+          folder: Type.Optional(
+            Type.String({ description: 'Mailbox folder, default "INBOX"', default: "INBOX" }),
+          ),
+          uids: Type.Array(Type.Integer({ description: "Message UID" }), {
+            description: "Message UIDs to update (1–100)",
+            minItems: 1,
+            maxItems: 100,
+          }),
+          seen: Type.Boolean({ description: "true = mark as read, false = mark as unread" }),
+        },
+        { additionalProperties: false },
+      ),
+      async execute(_id: string, params: { folder?: string; uids: number[]; seen: boolean }) {
+        const client = createImapClient(config);
+        try {
+          await client.connect();
+          const lock = await client.getMailboxLock(params.folder || "INBOX");
+          try {
+            const uidRange = params.uids.join(",");
+            const result = params.seen
+              ? await client.messageFlagsAdd(uidRange, ["\\Seen"], { uid: true })
+              : await client.messageFlagsRemove(uidRange, ["\\Seen"], { uid: true });
+            return jsonResult({
+              folder: params.folder || "INBOX",
+              updated: result ? params.uids : [],
+              seen: params.seen,
+              failed: result ? [] : params.uids,
             });
           } finally {
             lock.release();
@@ -348,17 +450,18 @@ export function createMailTools(config: YandexPluginConfig) {
             if (params.since) query.since = params.since;
             if (params.unseen) query.seen = false;
 
-            const searchResult = await client.search(query, { uid: true });
-            const uids = Array.isArray(searchResult) ? searchResult : [];
-            const limited = uids.slice(-1 * (params.limit || 20));
+            // Search returns sequence numbers (not UIDs) — sequence-based FETCH
+            // is more reliable on Yandex IMAP than UID-based FETCH.
+            const searchResult = await client.search(query);
+            const seqs = Array.isArray(searchResult) ? searchResult : [];
+            const limited = seqs.slice(-1 * (params.limit || 20));
             const messages: Array<Record<string, unknown>> = [];
 
             if (limited.length > 0) {
-              const uidRange = limited.join(",");
-              for await (const msg of client.fetch(uidRange, {
+              const seqRange = limited.join(",");
+              for await (const msg of client.fetch(seqRange, {
                 envelope: true,
                 flags: true,
-                uid: true,
               })) {
                 messages.push({
                   uid: msg.uid,
@@ -373,7 +476,7 @@ export function createMailTools(config: YandexPluginConfig) {
             messages.reverse();
             return jsonResult({
               folder: params.folder || "INBOX",
-              totalMatches: uids.length,
+              totalMatches: seqs.length,
               showing: messages.length,
               messages,
             });

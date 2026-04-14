@@ -18,6 +18,8 @@
       "yad_mail_send",
       "yad_mail_get_attachment",
       "yad_mail_search",
+      "yad_mail_delete",
+      "yad_mail_mark",
       "yad_calendar_list",
       "yad_calendar_events",
       "yad_calendar_create_event",
