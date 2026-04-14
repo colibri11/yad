@@ -10,6 +10,6 @@
     "declaration": true,
     "sourceMap": true
   },
-  "include": ["index.ts", "src/**/*.ts"],
+  "include": ["index.ts", "mcp-server.ts", "src/**/*.ts"],
   "exclude": ["src/**/__tests__/**"]
 }

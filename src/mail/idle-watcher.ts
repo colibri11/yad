@@ -1,6 +1,5 @@
 import { ImapFlow } from "imapflow";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YandexPluginConfig } from "../common/types.js";
+import type { Logger, YandexPluginConfig } from "../common/types.js";
 import { requirePassword, resolveLogin } from "../common/types.js";
 
 export interface MailEnvelope {
@@ -13,7 +12,7 @@ export interface MailEnvelope {
 
 export interface IdleWatcherOptions {
   config: YandexPluginConfig;
-  logger: PluginLogger;
+  logger: Logger;
   notifyAgent: (envelope: MailEnvelope) => Promise<void>;
   folder: string;
 }

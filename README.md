@@ -1,19 +1,72 @@
 # Yad
 
-Плагин для [OpenClaw](https://github.com/openclaw/openclaw), подключающий сервисы Яндекса: Почту, Календарь, Диск и Контакты.
+Yandex services (Mail, Calendar, Disk, Contacts) for AI agents via **MCP protocol** and as an **OpenClaw plugin**.
 
-Все сервисы работают через **пароли приложений** — не нужно создавать OAuth-приложение. Пароли создаются на одной странице: [id.yandex.ru/security/app-passwords](https://id.yandex.ru/security/app-passwords).
+All services use **app passwords** — no OAuth app required. Create passwords at [id.yandex.ru/security/app-passwords](https://id.yandex.ru/security/app-passwords).
 
-## Подключаемые сервисы
+## Services
 
-| Сервис | Протокол | Тип пароля приложения | Инструментов |
-|--------|----------|-----------------------|:------------:|
-| Яндекс.Диск | WebDAV | Файлы | 9 |
-| Яндекс.Почта | IMAP / SMTP | Почта | 7 |
-| Яндекс.Календарь | CalDAV | Календари | 5 |
-| Яндекс.Контакты | CardDAV | Контакты | 5 |
+| Service | Protocol | App password type | Tools |
+|---------|----------|-------------------|:-----:|
+| Yandex.Disk | WebDAV | Files | 9 |
+| Yandex.Mail | IMAP / SMTP | Mail | 7 |
+| Yandex.Calendar | CalDAV | Calendars | 5 |
+| Yandex.Contacts | CardDAV | Contacts | 5 |
 
-## Установка
+## MCP Server (Claude Desktop, Claude Code, Cursor, etc.)
+
+### Quick start
+
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "yandex": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/yad/mcp-server.ts"],
+      "env": {
+        "YANDEX_LOGIN": "user@yandex.ru",
+        "YANDEX_DISK_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
+        "YANDEX_MAIL_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
+        "YANDEX_CALENDAR_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
+        "YANDEX_CONTACTS_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx"
+      }
+    }
+  }
+}
+```
+
+Only `YANDEX_LOGIN` is required. Include passwords only for the services you need — the rest will be skipped.
+
+### IMAP IDLE (real-time mail monitoring)
+
+Set `YANDEX_MAIL_IDLE_ENABLED=true` to enable background monitoring of incoming emails. New mail triggers an MCP logging notification to the client.
+
+```json
+{
+  "env": {
+    "YANDEX_MAIL_IDLE_ENABLED": "true",
+    "YANDEX_MAIL_IDLE_FOLDER": "INBOX"
+  }
+}
+```
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|:--------:|-------------|
+| `YANDEX_LOGIN` | yes | Yandex login or full email |
+| `YANDEX_DISK_APP_PASSWORD` | | App password (type: Files) |
+| `YANDEX_MAIL_APP_PASSWORD` | | App password (type: Mail) |
+| `YANDEX_CALENDAR_APP_PASSWORD` | | App password (type: Calendars) |
+| `YANDEX_CONTACTS_APP_PASSWORD` | | App password (type: Contacts) |
+| `YANDEX_MAIL_IDLE_ENABLED` | | Set to `true` to enable IDLE watcher |
+| `YANDEX_MAIL_IDLE_FOLDER` | | IMAP folder to monitor (default: `INBOX`) |
+
+## OpenClaw Plugin
+
+### Installation
 
 ```bash
 git clone https://github.com/colibri11/yad.git
@@ -22,9 +75,9 @@ npm install
 openclaw plugins install -l .
 ```
 
-## Настройка
+### Configuration
 
-В конфигурации OpenClaw укажите логин и пароли приложений для нужных сервисов:
+In OpenClaw plugin config:
 
 ```json
 {
@@ -36,13 +89,9 @@ openclaw plugins install -l .
 }
 ```
 
-Обязателен только `login`. Каждый сервис подключается независимо — укажите пароль только для тех сервисов, которые хотите использовать.
+### IMAP IDLE (OpenClaw)
 
-### IMAP IDLE — мониторинг входящей почты в реальном времени
-
-Плагин поддерживает фоновый мониторинг почтового ящика через IMAP IDLE (RFC 2177). При поступлении нового письма автоматически запускается обработка указанным агентом.
-
-Для включения добавьте в конфигурацию плагина:
+In OpenClaw, IDLE actively dispatches a subagent to process each incoming email:
 
 ```json
 {
@@ -51,105 +100,74 @@ openclaw plugins install -l .
 }
 ```
 
-- `mail_idle_agent_id` — ID агента OpenClaw, который будет обрабатывать входящие письма. Наличие этого поля включает IDLE. Без него — IDLE не запускается.
-- `mail_idle_folder` — папка для мониторинга (по умолчанию `INBOX`).
+## Tools
 
-Требуется настроенный `mail_app_password` и отдельный агент в конфигурации OpenClaw:
+### Yandex.Disk (WebDAV)
 
-```json5
-{
-  agents: {
-    list: [
-      { id: "main", default: true, workspace: "..." },
-      { id: "mail-processor", workspace: "..." }
-    ]
-  }
-}
-```
+| Tool | Description |
+|------|-------------|
+| `yad_disk_list` | List files and folders |
+| `yad_disk_info` | Get file/folder properties |
+| `yad_disk_download` | Download file (text or base64) |
+| `yad_disk_upload` | Upload file (text, base64, or local file) |
+| `yad_disk_mkdir` | Create folder (supports recursive) |
+| `yad_disk_delete` | Delete file or folder |
+| `yad_disk_move` | Move / rename |
+| `yad_disk_copy` | Copy |
+| `yad_disk_publish` | Publish / unpublish (get public link) |
 
-Агент `mail-processor` получает сообщение с envelope письма (отправитель, тема, UID) и использует инструменты `yad_mail_read` и `yad_mail_get_attachment` для чтения и обработки вложений.
+### Yandex.Mail (IMAP/SMTP)
 
-### Как создать пароли приложений
+| Tool | Description |
+|------|-------------|
+| `yad_mail_list` | List messages in a folder |
+| `yad_mail_read` | Read full message by UID |
+| `yad_mail_send` | Send email with optional attachments |
+| `yad_mail_get_attachment` | Download attachment from a message |
+| `yad_mail_search` | Search by sender, subject, date |
+| `yad_mail_delete` | Delete messages by UID (up to 100) |
+| `yad_mail_mark` | Mark messages as read/unread |
 
-1. Откройте [id.yandex.ru/security/app-passwords](https://id.yandex.ru/security/app-passwords)
-2. Создайте пароль для каждого нужного сервиса, выбрав соответствующий тип:
-   - **Файлы** — для Яндекс.Диска
-   - **Почта** — для Яндекс.Почты
-   - **Календари** — для Яндекс.Календаря
-   - **Контакты** — для Яндекс.Контактов
-3. Скопируйте каждый пароль в конфигурацию плагина
+### Yandex.Calendar (CalDAV)
 
-## Инструменты
+| Tool | Description |
+|------|-------------|
+| `yad_calendar_list` | List calendars |
+| `yad_calendar_events` | List events (with date range filter) |
+| `yad_calendar_create_event` | Create event |
+| `yad_calendar_update_event` | Update event |
+| `yad_calendar_delete_event` | Delete event |
 
-### Яндекс.Диск (WebDAV)
+### Yandex.Contacts (CardDAV)
 
-| Инструмент | Описание |
-|------------|----------|
-| `yad_disk_list` | Список файлов и папок |
-| `yad_disk_info` | Свойства файла или папки |
-| `yad_disk_download` | Скачать файл (текст или base64) |
-| `yad_disk_upload` | Загрузить файл (текст, base64 или локальный файл) |
-| `yad_disk_mkdir` | Создать папку |
-| `yad_disk_delete` | Удалить файл или папку |
-| `yad_disk_move` | Переместить / переименовать |
-| `yad_disk_copy` | Копировать |
-| `yad_disk_publish` | Опубликовать / снять публикацию |
+| Tool | Description |
+|------|-------------|
+| `yad_contacts_list` | List contacts |
+| `yad_contacts_get` | Get contact |
+| `yad_contacts_create` | Create contact |
+| `yad_contacts_update` | Update contact |
+| `yad_contacts_delete` | Delete contact |
 
-### Яндекс.Почта (IMAP/SMTP)
+## Creating app passwords
 
-| Инструмент | Описание |
-|------------|----------|
-| `yad_mail_list` | Список писем в папке |
-| `yad_mail_read` | Прочитать письмо целиком |
-| `yad_mail_send` | Отправить письмо |
-| `yad_mail_get_attachment` | Скачать вложение из письма |
-| `yad_mail_search` | Поиск писем по отправителю, теме, дате |
-| `yad_mail_delete` | Удалить письма по UID (до 100 за вызов) |
-| `yad_mail_mark` | Отметить письма как прочитанные / непрочитанные |
+1. Go to [id.yandex.ru/security/app-passwords](https://id.yandex.ru/security/app-passwords)
+2. Create a password for each service:
+   - **Files** for Yandex.Disk
+   - **Mail** for Yandex.Mail
+   - **Calendars** for Yandex.Calendar
+   - **Contacts** for Yandex.Contacts
+3. Copy each password to your config
 
-### Яндекс.Календарь (CalDAV)
-
-| Инструмент | Описание |
-|------------|----------|
-| `yad_calendar_list` | Список календарей |
-| `yad_calendar_events` | Список событий (с фильтрацией по датам) |
-| `yad_calendar_create_event` | Создать событие |
-| `yad_calendar_update_event` | Изменить событие |
-| `yad_calendar_delete_event` | Удалить событие |
-
-### Яндекс.Контакты (CardDAV)
-
-| Инструмент | Описание |
-|------------|----------|
-| `yad_contacts_list` | Список контактов |
-| `yad_contacts_get` | Получить контакт |
-| `yad_contacts_create` | Создать контакт |
-| `yad_contacts_update` | Изменить контакт |
-| `yad_contacts_delete` | Удалить контакт |
-
-## Разработка
+## Development
 
 ```bash
-npm install                    # Установить зависимости
-npx tsc                        # Сборка в dist/
-npx vitest run                 # Запуск тестов
-npx biome check .              # Линтинг + форматирование
-openclaw plugins install -l .  # Установить локально в OpenClaw
+npm install                    # Install dependencies
+npx tsc                        # Build to dist/
+npx vitest run                 # Run tests
+npx biome check .              # Lint + format
+npx tsx scripts/smoke-test.ts  # E2E tests with real Yandex services
 ```
 
-### Smoke-тест с реальными сервисами
-
-```bash
-export YANDEX_LOGIN="user@yandex.ru"
-export YANDEX_DISK_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-export YANDEX_MAIL_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-export YANDEX_CALENDAR_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-export YANDEX_CONTACTS_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-npx tsx scripts/smoke-test.ts
-```
-
-Можно задать только часть паролей — ненастроенные сервисы будут пропущены.
-
-## Лицензия
+## License
 
 [MIT](LICENSE)

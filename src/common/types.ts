@@ -1,3 +1,11 @@
+/** Minimal logger interface — compatible with OpenClaw PluginLogger and console. */
+export interface Logger {
+  debug?: (message: string) => void;
+  info: (message: string) => void;
+  warn: (message: string) => void;
+  error: (message: string) => void;
+}
+
 export interface YandexPluginConfig {
   login: string;
   mail_app_password?: string;

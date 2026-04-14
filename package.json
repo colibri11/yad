@@ -1,8 +1,11 @@
 {
   "name": "yad",
-  "version": "0.7.1",
-  "description": "OpenClaw plugin for Yandex services: Mail, Calendar, Disk, Contacts",
+  "version": "1.0.0",
+  "description": "Yandex services (Mail, Calendar, Disk, Contacts) — OpenClaw plugin & MCP server",
   "type": "module",
+  "bin": {
+    "yad-mcp": "./dist/mcp-server.js"
+  },
   "openclaw": {
     "extensions": [
       "./index.ts"
@@ -13,6 +16,7 @@
     }
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@sinclair/typebox": "^0.34.0",
     "imapflow": "^1.0.0",
     "mailparser": "^3.7.0",
