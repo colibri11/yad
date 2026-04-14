@@ -21,6 +21,21 @@ export default definePluginEntry({
     "All services use app passwords from id.yandex.ru/security/app-passwords.",
 
   register(api) {
+    const logger = api.logger;
+
+    // Idempotency guard. OpenClaw 2026.4.12 plugin loader calls register()
+    // multiple times per process (~22s after gateway-ready, then again ~60-90s
+    // later). Yad owns long-lived resources (IMAP IDLE client, tool handlers);
+    // we want exactly one init per process. Symbol.for + globalThis ensures
+    // the flag survives across different module graphs / require caches.
+    const PLUGIN_INIT_KEY = Symbol.for("yad.pluginInitialized");
+    const globalStore = globalThis as Record<symbol, unknown>;
+    if (globalStore[PLUGIN_INIT_KEY]) {
+      logger.info("yad: already initialized in this process, skipping re-register");
+      return;
+    }
+    globalStore[PLUGIN_INIT_KEY] = true;
+
     const config = api.pluginConfig as unknown as YandexPluginConfig;
 
     if (!config?.login) {
