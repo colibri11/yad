@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import type { AnyAgentTool, OpenClawPluginDefinition } from "openclaw/plugin-sdk/plugin-entry";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
+import { createMetaTools } from "./src/common/meta-tools.js";
 import type { YandexPluginConfig } from "./src/common/types.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
@@ -122,7 +123,9 @@ export default definePluginEntry({
       config.mail_app_password && "Mail",
       config.calendar_app_password && "Calendar",
       config.contacts_app_password && "Contacts",
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
+
+    registerTools(createMetaTools({ version: pkg.version, enabledServices: enabled }));
 
     if (enabled.length === 0) {
       api.logger.warn(

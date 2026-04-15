@@ -29,7 +29,8 @@
       "yad_contacts_get",
       "yad_contacts_create",
       "yad_contacts_update",
-      "yad_contacts_delete"
+      "yad_contacts_delete",
+      "yad_version"
     ]
   },
   "configSchema": {

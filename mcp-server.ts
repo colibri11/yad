@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
+import { createMetaTools } from "./src/common/meta-tools.js";
 import type { Logger, YandexPluginConfig } from "./src/common/types.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
@@ -61,6 +62,8 @@ if (tools.length === 0) {
   );
   process.exit(1);
 }
+
+tools.push(...(createMetaTools({ version: pkg.version, enabledServices: enabled }) as ToolDef[]));
 
 const toolMap = new Map(tools.map((t) => [t.name, t]));
 

@@ -3,6 +3,7 @@
 ## v1.1.0
 
 - **Drop `@modelcontextprotocol/sdk` runtime dependency.** `mcp-server.ts` now implements the MCP stdio protocol directly (JSON-RPC 2.0 over newline-delimited stdin/stdout). Supports `initialize`, `ping`, `tools/list`, `tools/call`, plus outbound `notifications/message` for IDLE watcher logging. Eliminates the SDK's large transitive dependency tree from plugin installs — yad's production `node_modules` now contains only Yandex-protocol libraries (`imapflow`, `tsdav`, `nodemailer`, `mailparser`, `@sinclair/typebox`). Fixes the upgrade friction hit when moving from v0.7.1 → v1.0.x, where plugin installs pulled MCP SDK + transitive deps that were never needed at plugin runtime. Includes a lifecycle guard rejecting non-`initialize`/non-`ping` requests before the handshake completes.
+- **New tool: `yad_version`.** Returns runtime info about the running yad instance — plugin version, enabled services, process start time, uptime, pid. Lets an agent verify at any time which build it is actually talking to, rather than relying on the `serverInfo` version from the MCP `initialize` handshake (which isn't surfaced to agents). Especially useful during iterative plugin development and after upgrades, when stale cached binaries would otherwise be indistinguishable from a fresh install.
 
 ## v1.0.1
 
