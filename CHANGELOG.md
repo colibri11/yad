@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.1
+
+- **Fix: tools not available to agents in multi-agent mode.** The process-global idempotency guard introduced in v0.7.1 was too coarse: in multi-agent mode each agent receives its own `api` with its own tool registry, and the first call set a global flag that caused every subsequent agent's `register()` to short-circuit before registering any tools. Tools are now registered on every `register()` call. Only the IMAP IDLE watcher — the one resource that truly must be a process singleton — stays behind a `Symbol.for("yad.idleServiceRegistered")` guard.
+
 ## v0.7.1
 
 - **Idempotency guard in `register()`** — the plugin now initializes exactly once per process. Repeated calls from the gateway plugin loader are detected via a process-global flag and short-circuited with an info log. Prevents duplicate tool registration, log noise, and unnecessary IMAP IDLE reconnects.
