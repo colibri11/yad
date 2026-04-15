@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.0
+
+- **Drop `@modelcontextprotocol/sdk` runtime dependency.** `mcp-server.ts` now implements the MCP stdio protocol directly (JSON-RPC 2.0 over newline-delimited stdin/stdout). Supports `initialize`, `ping`, `tools/list`, `tools/call`, plus outbound `notifications/message` for IDLE watcher logging. Eliminates the SDK's large transitive dependency tree from plugin installs — yad's production `node_modules` now contains only Yandex-protocol libraries (`imapflow`, `tsdav`, `nodemailer`, `mailparser`, `@sinclair/typebox`). Fixes the upgrade friction hit when moving from v0.7.1 → v1.0.x, where plugin installs pulled MCP SDK + transitive deps that were never needed at plugin runtime. Includes a lifecycle guard rejecting non-`initialize`/non-`ping` requests before the handshake completes.
+
 ## v1.0.1
 
 - **Fix: tools not available to agents in multi-agent mode.** The process-global idempotency guard introduced in v0.7.1 was too coarse: in multi-agent mode each agent receives its own `api` with its own tool registry, and the first call set a global flag that caused every subsequent agent's `register()` to short-circuit before registering any tools. Tools are now registered on every `register()` call. Only the IMAP IDLE watcher — the one resource that truly must be a process singleton — stays behind a `Symbol.for("yad.idleServiceRegistered")` guard.
