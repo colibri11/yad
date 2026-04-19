@@ -102,6 +102,45 @@ export async function download(auth: WebDavAuth, path: string): Promise<Buffer> 
   return Buffer.from(await res.arrayBuffer());
 }
 
+/** GET — stream file directly to local filesystem path. Returns bytes written and content type. */
+export async function downloadToFile(
+  auth: WebDavAuth,
+  remotePath: string,
+  localPath: string,
+): Promise<{ bytes: number; contentType: string }> {
+  const fs = await import("node:fs");
+  const { Readable } = await import("node:stream");
+  const { pipeline } = await import("node:stream/promises");
+
+  const res = await fetch(fullUrl(remotePath), {
+    method: "GET",
+    headers: {
+      Authorization: authHeader(auth),
+      Accept: "*/*",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`GET ${remotePath} failed: ${res.status} ${res.statusText}`);
+  }
+  if (!res.body) {
+    throw new Error(`GET ${remotePath} returned no body`);
+  }
+
+  const contentType = res.headers.get("content-type") || "application/octet-stream";
+  const writeStream = fs.createWriteStream(localPath);
+  const source = Readable.fromWeb(res.body as never);
+  try {
+    await pipeline(source, writeStream);
+  } catch (err) {
+    // Yandex WebDAV does not support resume — leave no partial file behind.
+    try {
+      fs.unlinkSync(localPath);
+    } catch {}
+    throw err;
+  }
+  return { bytes: writeStream.bytesWritten, contentType };
+}
+
 /** PUT — upload file */
 export async function upload(
   auth: WebDavAuth,
@@ -120,6 +159,139 @@ export async function upload(
   if (!res.ok) {
     throw new Error(`PUT ${path} failed: ${res.status} ${res.statusText}`);
   }
+}
+
+/** PUT — stream a local file as the request body using node:https (not fetch).
+ *
+ * Why https.request and not fetch:
+ * - undici's fetch buffers the request body in memory instead of streaming it,
+ *   and its body backpressure is broken for large bodies (undici #4058, #2014).
+ * - Yandex WebDAV expects Expect: 100-continue and breaks if the client sends body
+ *   before the server replies with 100. fetch doesn't speak 100-continue.
+ *
+ * Timeout is adaptive (60s base + 60s per MB, ×2 margin) because Yandex WebDAV
+ * delays the 201 response ~60s per MB while it hashes and antivirus-scans the
+ * uploaded file. Short timeouts make the upload look failed when it actually
+ * succeeded; the adaptive window matches Yandex's documented behaviour.
+ */
+export async function uploadFromFile(
+  auth: WebDavAuth,
+  remotePath: string,
+  localPath: string,
+  contentType = "application/octet-stream",
+): Promise<{ bytes: number }> {
+  const fs = await import("node:fs");
+  const https = await import("node:https");
+
+  const stat = fs.statSync(localPath);
+  const url = new URL(fullUrl(remotePath));
+
+  // Optional progress log (opt-in via env var — useful for diagnosing slow uploads).
+  const progressPath = process.env.YAD_UPLOAD_PROGRESS;
+  let bytesSent = 0;
+  let progressTimer: NodeJS.Timeout | undefined;
+  const start = Date.now();
+  if (progressPath) {
+    fs.writeFileSync(progressPath, `start size=${stat.size} target=${remotePath}\n`);
+    progressTimer = setInterval(() => {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      const pct = ((bytesSent / stat.size) * 100).toFixed(1);
+      fs.appendFileSync(progressPath, `t=${elapsed}s sent=${bytesSent}/${stat.size} (${pct}%)\n`);
+    }, 1000);
+  }
+
+  return await new Promise<{ bytes: number }>((resolve, reject) => {
+    let settled = false;
+    let bodyStarted = false;
+
+    const settle = (err: Error | null) => {
+      if (settled) return;
+      settled = true;
+      if (progressTimer) clearInterval(progressTimer);
+      if (progressPath) {
+        fs.appendFileSync(
+          progressPath,
+          err ? `error sent=${bytesSent}: ${err.message}\n` : `done sent=${bytesSent}\n`,
+        );
+      }
+      if (err) reject(err);
+      else resolve({ bytes: bytesSent });
+    };
+
+    const req = https.request({
+      method: "PUT",
+      hostname: url.hostname,
+      port: url.port ? Number(url.port) : 443,
+      path: url.pathname + url.search,
+      headers: {
+        Authorization: authHeader(auth),
+        "Content-Type": contentType,
+        "Content-Length": String(stat.size),
+        Expect: "100-continue",
+      },
+    });
+
+    req.on("error", (err) => settle(err));
+
+    req.on("continue", () => {
+      bodyStarted = true;
+      const fileStream = fs.createReadStream(localPath);
+      fileStream.on("data", (chunk: Buffer) => {
+        bytesSent += chunk.length;
+      });
+      fileStream.on("error", (err) => {
+        req.destroy(err);
+        settle(err);
+      });
+      fileStream.pipe(req);
+    });
+
+    req.on("response", (res) => {
+      let body = "";
+      res.setEncoding("utf-8");
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
+      res.on("end", () => {
+        const sc = res.statusCode ?? 0;
+        if (sc >= 200 && sc < 300) {
+          settle(null);
+        } else {
+          settle(
+            new Error(
+              `PUT ${remotePath} failed: ${sc} ${res.statusMessage}${body ? ` — ${body.slice(0, 200)}` : ""}`,
+            ),
+          );
+        }
+      });
+      res.on("error", (err) => settle(err));
+
+      // If server replied with a final response without ever sending 100 Continue
+      // (e.g. 401, 409), we never started streaming the body. Close the request.
+      if (!bodyStarted) {
+        req.destroy();
+      }
+    });
+
+    // Yandex WebDAV deliberately delays the 201 response by ~60s per MB
+    // (server-side hash + antivirus scan, documented behaviour). Body transfer
+    // itself is fast, but waiting for the final response dominates. Adaptive
+    // timeout: 60s base + 60s per MB, plus a 2× safety margin.
+    const mb = stat.size / (1024 * 1024);
+    const timeoutMs = Math.max(60_000, Math.ceil(60_000 + 60_000 * mb) * 2);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(
+        new Error(
+          `PUT ${remotePath} timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+            "Yandex WebDAV throttles ~60s per MB during server-side processing; " +
+            "either retry or set disk_oauth_token for faster REST API upload.",
+        ),
+      );
+    });
+
+    // Flush headers so server can respond with 100 Continue (or an error).
+    req.flushHeaders();
+  });
 }
 
 /** Check if a resource exists (PROPFIND with Depth 0, returns false on 404) */

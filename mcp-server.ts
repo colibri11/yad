@@ -15,6 +15,7 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 const config: YandexPluginConfig = {
   login: process.env.YANDEX_LOGIN || "",
   disk_app_password: process.env.YANDEX_DISK_APP_PASSWORD,
+  disk_oauth_token: process.env.YANDEX_DISK_OAUTH_TOKEN,
   mail_app_password: process.env.YANDEX_MAIL_APP_PASSWORD,
   calendar_app_password: process.env.YANDEX_CALENDAR_APP_PASSWORD,
   contacts_app_password: process.env.YANDEX_CONTACTS_APP_PASSWORD,

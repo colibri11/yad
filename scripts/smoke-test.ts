@@ -7,6 +7,7 @@
  *   export YANDEX_MAIL_PASSWORD="xxxx-xxxx-xxxx-xxxx"
  *   export YANDEX_CALENDAR_PASSWORD="xxxx-xxxx-xxxx-xxxx"
  *   export YANDEX_CONTACTS_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+ *   export YANDEX_DISK_OAUTH_TOKEN="y0_xxx..."   # optional, enables REST API tests
  *
  *   npx tsx scripts/smoke-test.ts
  *
@@ -18,6 +19,7 @@ import type { YandexPluginConfig } from "../src/common/types.js";
 const config: YandexPluginConfig = {
   login: process.env.YANDEX_LOGIN || "",
   disk_app_password: process.env.YANDEX_DISK_PASSWORD,
+  disk_oauth_token: process.env.YANDEX_DISK_OAUTH_TOKEN,
   mail_app_password: process.env.YANDEX_MAIL_PASSWORD,
   calendar_app_password: process.env.YANDEX_CALENDAR_PASSWORD,
   contacts_app_password: process.env.YANDEX_CONTACTS_PASSWORD,
@@ -263,6 +265,135 @@ if (config.disk_app_password) {
       fs.unlinkSync(tmpPath);
     }
   });
+
+  await run("download with target_path (stream to local file)", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+
+    const testDir = `/openclaw-test-${Date.now()}`;
+    const testFile = `${testDir}/streamed.bin`;
+    const original = Buffer.alloc(512 * 1024);
+    for (let i = 0; i < original.length; i++) original[i] = (i * 31) & 0xff;
+
+    await findTool(tools, "yad_disk_mkdir").execute("t", { path: testDir });
+    await findTool(tools, "yad_disk_upload").execute("t", {
+      path: testFile,
+      content: original.toString("base64"),
+      encoding: "base64",
+      content_type: "application/octet-stream",
+    });
+
+    const localDir = path.join(os.tmpdir(), `openclaw-dl-${Date.now()}`, "nested");
+    const localPath = path.join(localDir, "streamed.bin");
+
+    try {
+      // Streaming download; parent dir created automatically
+      const r = await findTool(tools, "yad_disk_download").execute("t", {
+        path: testFile,
+        target_path: localPath,
+      });
+      const meta = JSON.parse(r.content[0].text);
+      if (meta.bytes !== original.length) {
+        throw new Error(`bytes mismatch: expected ${original.length}, got ${meta.bytes}`);
+      }
+      const onDisk = fs.readFileSync(localPath);
+      if (!onDisk.equals(original)) throw new Error("Streamed content mismatch");
+      console.log(`    target_path → ${meta.bytes} bytes on disk ✓`);
+
+      // Overwrite guard
+      let blocked = false;
+      try {
+        await findTool(tools, "yad_disk_download").execute("t", {
+          path: testFile,
+          target_path: localPath,
+        });
+      } catch (e) {
+        blocked = /already exists/.test((e as Error).message);
+      }
+      if (!blocked) throw new Error("Expected overwrite guard to trigger");
+      console.log("    overwrite guard ✓");
+
+      // Explicit overwrite
+      await findTool(tools, "yad_disk_download").execute("t", {
+        path: testFile,
+        target_path: localPath,
+        overwrite: true,
+      });
+      console.log("    overwrite=true ✓");
+    } finally {
+      if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+      fs.rmSync(path.dirname(path.dirname(localPath)), { recursive: true, force: true });
+      await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // REST API (OAuth) — only runs if YANDEX_DISK_OAUTH_TOKEN is set.
+  // Tests routing of files > 10 MB through the REST CDN instead of WebDAV.
+  // ---------------------------------------------------------------------------
+  if (config.disk_oauth_token) {
+    await run("REST upload/download round-trip (12 MB via source_path, sha256)", async () => {
+      const fs = await import("node:fs");
+      const os = await import("node:os");
+      const path = await import("node:path");
+      const crypto = await import("node:crypto");
+
+      const testDir = `/openclaw-test-rest-${Date.now()}`;
+      const remoteFile = `${testDir}/big.bin`;
+      const size = 12 * 1024 * 1024; // Above WEBDAV_UPLOAD_LIMIT_BYTES → must use REST.
+
+      const tmpDir = path.join(os.tmpdir(), `openclaw-rest-${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const srcPath = path.join(tmpDir, "big.bin");
+      const dstPath = path.join(tmpDir, "big-downloaded.bin");
+
+      try {
+        // Generate deterministic payload and compute sha256.
+        const buf = Buffer.alloc(size);
+        for (let i = 0; i < size; i += 4) buf.writeUInt32LE((i * 2654435761) >>> 0, i);
+        fs.writeFileSync(srcPath, buf);
+        const srcHash = crypto.createHash("sha256").update(buf).digest("hex");
+
+        await findTool(tools, "yad_disk_mkdir").execute("t", { path: testDir });
+
+        const uploadResult = await findTool(tools, "yad_disk_upload").execute("t", {
+          path: remoteFile,
+          source_path: srcPath,
+        });
+        const uploadText = uploadResult.content[0].text;
+        if (!uploadText.includes("transport: rest")) {
+          throw new Error(`Expected REST transport, got: ${uploadText}`);
+        }
+        console.log(`    upload: ${uploadText.trim()}`);
+
+        const dlResult = await findTool(tools, "yad_disk_download").execute("t", {
+          path: remoteFile,
+          target_path: dstPath,
+        });
+        const meta = JSON.parse(dlResult.content[0].text);
+        if (meta.transport !== "rest") {
+          throw new Error(`Expected REST download transport, got: ${meta.transport}`);
+        }
+        if (meta.bytes !== size) {
+          throw new Error(`bytes mismatch: expected ${size}, got ${meta.bytes}`);
+        }
+
+        const dstHash = crypto.createHash("sha256").update(fs.readFileSync(dstPath)).digest("hex");
+        if (srcHash !== dstHash) {
+          throw new Error(`sha256 mismatch: src=${srcHash} dst=${dstHash}`);
+        }
+        console.log(`    round-trip: ${size} bytes, sha256 match ✓`);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        try {
+          await findTool(tools, "yad_disk_delete").execute("t", { path: testDir });
+        } catch {}
+      }
+    });
+  } else {
+    console.log("    REST API tests пропущены (YANDEX_DISK_OAUTH_TOKEN не задан)");
+  }
 } else {
   console.log("📁 Яндекс.Диск — пропущен (YANDEX_DISK_PASSWORD не задан)");
 }

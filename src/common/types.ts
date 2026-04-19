@@ -12,6 +12,10 @@ export interface YandexPluginConfig {
   calendar_app_password?: string;
   disk_app_password?: string;
   contacts_app_password?: string;
+  /** OAuth token for Yandex.Disk REST API. Required for files > ~10 MB
+   * because the WebDAV gateway throttles/drops connections on large bodies.
+   * Get one at https://oauth.yandex.ru/. */
+  disk_oauth_token?: string;
   mail_idle_agent_id?: string;
   mail_idle_folder?: string;
 }
