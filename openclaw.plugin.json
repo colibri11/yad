@@ -53,6 +53,10 @@
         "type": ["string", "object"],
         "description": "App password for Disk (type: 'Файлы')"
       },
+      "disk_oauth_token": {
+        "type": ["string", "object"],
+        "description": "OAuth token for Yandex.Disk REST API (large files > 10 MB). Get at https://oauth.yandex.ru/ with cloud_api:disk.read + cloud_api:disk.write scopes."
+      },
       "contacts_app_password": {
         "type": ["string", "object"],
         "description": "App password for Contacts (type: 'Контакты')"
@@ -91,6 +95,12 @@
       "help": "Create at id.yandex.ru/security/app-passwords, type 'Файлы'",
       "sensitive": true,
       "placeholder": "xxxx-xxxx-xxxx-xxxx"
+    },
+    "disk_oauth_token": {
+      "label": "Disk OAuth Token",
+      "help": "Optional — required for files > 10 MB. Get at oauth.yandex.ru with cloud_api:disk.read + cloud_api:disk.write scopes.",
+      "sensitive": true,
+      "placeholder": "y0_..."
     },
     "contacts_app_password": {
       "label": "Contacts App Password",
