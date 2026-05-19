@@ -75,10 +75,10 @@ Set `YANDEX_MAIL_IDLE_ENABLED=true` to enable background monitoring of incoming 
 
 ```bash
 git clone https://github.com/colibri11/yad.git
-cd yad
-npm install
-openclaw plugins install -l .
+openclaw plugins install -l yad
 ```
+
+The repo ships pre-built `dist/` — no `npm run build` step required. Runtime dependencies are installed by the OpenClaw plugin installer.
 
 ### Configuration
 

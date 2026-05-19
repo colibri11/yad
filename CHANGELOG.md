@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.3.0
+
+- **Ship compiled `dist/` directly in the repo.** Required by OpenClaw 2026.5.18+ which removed the source-only TS runtime fallback — installs of plugins with a TypeScript entry now hard-fail unless `dist/index.js` is present in the package. Earlier hosts loaded `index.ts` via a jiti shim that the gateway no longer supports.
+- `package.json`: add `main` (`dist/index.js`), `types` (`dist/index.d.ts`), `scripts.build` (`tsc`).
+- `.gitattributes`: mark `dist/**` as `linguist-generated -diff` to keep PR diffs readable.
+- `.gitignore`: drop `dist/` (now tracked).
+
+## v1.2.1
+
+- **Fix: `disk_oauth_token` rejected by config validation.** v1.2.0 shipped the OAuth REST API path but forgot to declare `disk_oauth_token` in `openclaw.plugin.json`. With `additionalProperties: false` on `configSchema`, OpenClaw rejected configs that included the token — the very configs the new code needs to function. Adds the property to `configSchema.properties` (matching the app-password shape) with a sensitive `uiHint` linking to the OAuth setup page. MCP-server deployments were unaffected — they read env vars directly.
+
+## v1.2.0
+
+- **New transport: Yandex.Disk REST API for large files.** Yandex's WebDAV gateway throttles uploads and silently drops connections above ~20–30 MB, and delays the 201 response ~60s per MB during post-upload hash + antivirus scanning, making medium files (5–10 MB) effectively unusable. Files > 10 MB now route through the REST API CDN using an OAuth token (`disk_oauth_token` / `YANDEX_DISK_OAUTH_TOKEN`); app passwords continue to work for everything else.
+- **`yad_disk_download` gained `target_path`** — stream the file to a local path and return only metadata, avoiding base64 bloat in the agent context. Partial downloads are cleaned up on error.
+- **`yad_disk_upload` streams from `source_path`** via `node:https` with proper `Expect: 100-continue` handling (undici-fetch buffers bodies and breaks Yandex's handshake).
+- Adaptive WebDAV upload timeout: 60s base + 60s/MB × 2 margin, matching Yandex's documented server-side throttle.
+- Optional `YAD_UPLOAD_PROGRESS` diagnostic log for slow uploads.
+- Smoke-test adds a 12 MB REST round-trip with sha256 verification.
+
 ## v1.1.0
 
 - **Drop `@modelcontextprotocol/sdk` runtime dependency.** `mcp-server.ts` now implements the MCP stdio protocol directly (JSON-RPC 2.0 over newline-delimited stdin/stdout). Supports `initialize`, `ping`, `tools/list`, `tools/call`, plus outbound `notifications/message` for IDLE watcher logging. Eliminates the SDK's large transitive dependency tree from plugin installs — yad's production `node_modules` now contains only Yandex-protocol libraries (`imapflow`, `tsdav`, `nodemailer`, `mailparser`, `@sinclair/typebox`). Fixes the upgrade friction hit when moving from v0.7.1 → v1.0.x, where plugin installs pulled MCP SDK + transitive deps that were never needed at plugin runtime. Includes a lifecycle guard rejecting non-`initialize`/non-`ping` requests before the handshake completes.
