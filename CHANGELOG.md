@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.1
+
+- **Fix: `ENOENT: dist/package.json` on plugin load.** v1.3.0 ships the compiled entry from `dist/index.js`, but `index.ts` and `mcp-server.ts` resolved `package.json` relative to `import.meta.url` (`./package.json`) — which after compilation points at the non-existent `dist/package.json` instead of the repo root. OpenClaw 2026.5.18 gateway aborted the load with ENOENT, no `yad_*` tools registered (the `openclaw plugins list` manifest view masked it). Path corrected to `../package.json` so the compiled entry resolves the root `package.json`. Source no longer runs through `tsx`/`ts-node` directly — `dist/` is the contractual entry point since OpenClaw 5.18.
+
 ## v1.3.0
 
 - **Ship compiled `dist/` directly in the repo.** Required by OpenClaw 2026.5.18+ which removed the source-only TS runtime fallback — installs of plugins with a TypeScript entry now hard-fail unless `dist/index.js` is present in the package. Earlier hosts loaded `index.ts` via a jiti shim that the gateway no longer supports.
