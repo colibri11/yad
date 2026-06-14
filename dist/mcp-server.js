@@ -5,7 +5,16 @@ import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
 import { startIdleWatcher } from "./src/mail/idle-watcher.js";
 import { createMailTools } from "./src/mail/mail-tools.js";
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
+function loadPkg() {
+    for (const path of ["./package.json", "../package.json"]) {
+        try {
+            return JSON.parse(readFileSync(new URL(path, import.meta.url), "utf-8"));
+        }
+        catch { }
+    }
+    throw new Error("yad-mcp: package.json not found");
+}
+const pkg = loadPkg();
 // ---------------------------------------------------------------------------
 // Config from environment variables
 // ---------------------------------------------------------------------------
