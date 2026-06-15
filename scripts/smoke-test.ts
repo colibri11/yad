@@ -12,6 +12,15 @@
  *   npx tsx scripts/smoke-test.ts
  *
  * Можно задать только часть паролей — тесты для ненастроенных сервисов будут пропущены.
+ *
+ * Проверка proxy-транспорта (fail-closed) — opt-in через YAD_TEST_PROXY:
+ *   YAD_TEST_PROXY=self   — поднять локальные HTTP CONNECT + SOCKS5 прокси и
+ *                           прогнать через них все транспорты к живому Яндексу.
+ *                           Кред Яндекса не требует (проверяется сам proxy-путь:
+ *                           ответ сервера = трафик дошёл через прокси по TLS).
+ *   YAD_TEST_PROXY=<url>  — использовать заданный внешний прокси
+ *                           (http://, https://, socks5://).
+ * Если заданы mail-креды, IMAP/SMTP проверяются с реальным логином через прокси.
  */
 
 import type { YandexPluginConfig } from "../src/common/types.js";
@@ -763,6 +772,197 @@ if (config.contacts_app_password) {
   });
 } else {
   console.log("\n👤 Яндекс.Контакты — пропущены (YANDEX_CONTACTS_PASSWORD не задан)");
+}
+
+// --- Proxy transport verification (opt-in via YAD_TEST_PROXY) ---
+
+const proxyMode = process.env.YAD_TEST_PROXY;
+if (proxyMode) {
+  console.log("\n🔌 Proxy transport (YAD_TEST_PROXY)");
+
+  const net = await import("node:net");
+  const https = await import("node:https");
+  const { proxyFetch, getHttpsAgent } = await import("../src/common/proxy.js");
+  const { createImapClient, createSmtpTransport } = await import("../src/mail/clients.js");
+
+  const PROXY_ENV_KEYS = [
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "NO_PROXY",
+    "no_proxy",
+    "YAD_PROXY_URL",
+  ];
+  function useProxy(url: string) {
+    for (const k of PROXY_ENV_KEYS) delete process.env[k];
+    process.env.HTTPS_PROXY = url;
+  }
+
+  // A non-network error after connecting means the transport reached the server
+  // (auth/command rejected) — that still proves the proxy path works.
+  const NET_FAIL =
+    /ENETUNREACH|ECONNREFUSED|EHOSTUNREACH|getaddrinfo|ETIMEDOUT|timed out|socket close|Proxy CONNECT|setup proxy/i;
+  const isNetFail = (msg: string) => NET_FAIL.test(msg);
+
+  // Minimal in-process HTTP CONNECT proxy that tunnels to the real destination.
+  function startConnectProxy(seen: string[]) {
+    const server = net.createServer((client) => {
+      let buf = "";
+      const onData = (chunk: Buffer) => {
+        buf += chunk.toString("utf8");
+        const end = buf.indexOf("\r\n\r\n");
+        if (end === -1) return;
+        client.removeListener("data", onData);
+        const m = /^CONNECT (\S+):(\d+)/.exec(buf.slice(0, buf.indexOf("\r\n")));
+        if (!m) {
+          client.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+          return;
+        }
+        seen.push(`${m[1]}:${m[2]}`);
+        const up = net.connect({ host: m[1], port: Number(m[2]) }, () => {
+          client.write("HTTP/1.1 200 Connection established\r\n\r\n");
+          up.pipe(client);
+          client.pipe(up);
+        });
+        up.on("error", () => client.destroy());
+      };
+      client.on("data", onData);
+    });
+    return server;
+  }
+
+  // Minimal in-process no-auth SOCKS5 CONNECT proxy.
+  function startSocks5Proxy(seen: string[]) {
+    const server = net.createServer((sock) => {
+      sock.once("data", () => {
+        sock.write(Buffer.from([0x05, 0x00])); // no-auth
+        sock.once("data", (req: Buffer) => {
+          const atyp = req[3];
+          let host: string;
+          let off: number;
+          if (atyp === 0x01) {
+            host = `${req[4]}.${req[5]}.${req[6]}.${req[7]}`;
+            off = 8;
+          } else if (atyp === 0x03) {
+            const len = req[4];
+            host = req.subarray(5, 5 + len).toString();
+            off = 5 + len;
+          } else {
+            sock.end();
+            return;
+          }
+          const port = req.readUInt16BE(off);
+          seen.push(`${host}:${port}`);
+          const up = net.connect({ host, port }, () => {
+            sock.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+            up.pipe(sock);
+            sock.pipe(up);
+          });
+          up.on("error", () => {
+            try {
+              sock.write(Buffer.from([0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+            } catch {}
+            sock.end();
+          });
+        });
+      });
+    });
+    return server;
+  }
+
+  const listen = (server: import("node:net").Server) =>
+    new Promise<number>((resolve) => {
+      server.listen(0, "127.0.0.1", () =>
+        resolve((server.address() as import("node:net").AddressInfo).port),
+      );
+    });
+
+  // Run the full transport matrix through whatever HTTPS_PROXY currently points at.
+  async function runMatrix(tag: string) {
+    await run(`${tag} WebDAV PROPFIND (proxyFetch / undici)`, async () => {
+      const res = await proxyFetch("https://webdav.yandex.ru/", {
+        method: "PROPFIND",
+        headers: { Depth: "0" },
+      });
+      console.log(`    HTTP ${res.status} — reached Yandex through proxy`);
+    });
+
+    await run(`${tag} WebDAV GET (getHttpsAgent / node:https tunnel)`, async () => {
+      const agent = getHttpsAgent("webdav.yandex.ru");
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = https.request(
+          { method: "GET", hostname: "webdav.yandex.ru", port: 443, path: "/", agent },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on("error", reject);
+        req.setTimeout(20000, () => req.destroy(new Error("timed out")));
+        req.end();
+      });
+      console.log(`    HTTP ${status} — node:https tunnel works`);
+    });
+
+    const mailCfg = config.mail_app_password
+      ? { login: config.login, mail_app_password: config.mail_app_password }
+      : { login: "yad-e2e-nonexistent", mail_app_password: "bogus" };
+    const authNote = config.mail_app_password ? "(real login)" : "(bogus creds → reaches auth)";
+
+    await run(`${tag} IMAP :993 (imapflow) ${authNote}`, async () => {
+      const c = createImapClient(mailCfg);
+      try {
+        await c.connect();
+        await c.logout();
+        console.log("    connected + logged in through proxy");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isNetFail(msg)) throw new Error(`network failure: ${msg}`);
+        console.log(`    reached Yandex IMAP, rejected: "${msg.slice(0, 50)}"`);
+      }
+    });
+
+    await run(`${tag} SMTP :465 (nodemailer) ${authNote}`, async () => {
+      const t = createSmtpTransport(mailCfg);
+      try {
+        await t.verify();
+        console.log("    verify() ok through proxy");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isNetFail(msg)) throw new Error(`network failure: ${msg}`);
+        console.log(`    reached Yandex SMTP, rejected: "${msg.slice(0, 50)}"`);
+      }
+    });
+  }
+
+  if (proxyMode === "self") {
+    const connectSeen: string[] = [];
+    const socksSeen: string[] = [];
+    const connectProxy = startConnectProxy(connectSeen);
+    const socksProxy = startSocks5Proxy(socksSeen);
+    const connectPort = await listen(connectProxy);
+    const socksPort = await listen(socksProxy);
+
+    useProxy(`http://127.0.0.1:${connectPort}`);
+    console.log("  → HTTP CONNECT proxy");
+    await runMatrix("[CONNECT]");
+    console.log(`    CONNECTs: ${JSON.stringify([...new Set(connectSeen)])}`);
+
+    useProxy(`socks5://127.0.0.1:${socksPort}`);
+    console.log("  → SOCKS5 proxy");
+    await runMatrix("[SOCKS5]");
+    console.log(`    CONNECTs: ${JSON.stringify([...new Set(socksSeen)])}`);
+
+    connectProxy.close();
+    socksProxy.close();
+  } else {
+    useProxy(proxyMode);
+    console.log(`  → external proxy ${proxyMode.replace(/\/\/[^@]+@/, "//***@")}`);
+    await runMatrix("[proxy]");
+  }
 }
 
 console.log("\n🏁 Smoke test завершён.\n");
