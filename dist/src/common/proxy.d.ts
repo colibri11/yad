@@ -30,8 +30,28 @@ export interface TransportEndpoint {
   name: string;
   host: string;
   port: number;
+  /**
+   * Whether the real client pre-resolves the host to an IP and sends
+   * `CONNECT <IP>:port` (true), or sends `CONNECT <hostname>:port` (false/omitted).
+   *
+   * imapflow pre-resolves (proxy-connection.js: `dns.resolve` then CONNECT the IP)
+   * so the probe must do the same — otherwise a proxy that authorises CONNECT by
+   * hostname/dstdomain (e.g. squid `acl ... dstdomain .yandex.ru`) lets the
+   * hostname-probe through while denying the real IP-CONNECT, giving a false green.
+   * nodemailer (SMTP) and undici (DAV/REST) send CONNECT by hostname.
+   */
+  connectByIp?: boolean;
 }
 export declare const TRANSPORTS: TransportEndpoint[];
+/**
+ * Resolve what the real client would put in the CONNECT request for an endpoint:
+ * the DNS-resolved IP for `connectByIp` transports (matching imapflow), or the
+ * hostname otherwise. Exported for testing.
+ */
+export declare function connectTargetFor(endpoint: TransportEndpoint): Promise<{
+  host: string;
+  via: "ip" | "hostname";
+}>;
 /**
  * Resolve the proxy URL to use for a given target host, or undefined for direct.
  *
@@ -83,15 +103,23 @@ export interface ReachabilityResult {
   ok: boolean;
   via: "proxy" | "direct";
   proxy: string | null;
+  /** How the CONNECT target was addressed — "ip" (resolved, like imapflow) or "hostname". */
+  connectVia: "ip" | "hostname";
+  /** The literal CONNECT target used (resolved IP for IMAP, hostname otherwise). */
+  connectTarget?: string;
   error?: string;
 }
 /**
  * Test reachability of one endpoint (through the proxy if configured).
  *
- * Establishes the tunnel (CONNECT / SOCKS) and then performs a real TLS
- * handshake to the endpoint — all yad endpoints are implicit-TLS (993/465/443),
- * so a successful handshake confirms end-to-end reachability, not merely that
- * the proxy accepted CONNECT. No credentials are sent.
+ * Replicates exactly what the real client puts in the CONNECT request: the
+ * DNS-resolved IP for `connectByIp` transports (IMAP/imapflow), or the hostname
+ * otherwise (SMTP/nodemailer, DAV/REST/undici). This is what makes the probe
+ * honest — a proxy that authorises CONNECT by hostname but not by IP (squid
+ * `dstdomain`) is correctly reported as a FAILURE for IMAP, instead of a false
+ * green. It then performs a real TLS handshake (all yad endpoints are
+ * implicit-TLS on 993/465/443) with the hostname as SNI, matching the client.
+ * No credentials are sent.
  *
  * The default timeout is slightly above PROXY_CONNECT_TIMEOUT_MS so the inner
  * tunnel-setup guard fires first with a specific error instead of a generic

@@ -140,6 +140,8 @@ Because each transport uses a different port, the proxy must allow `CONNECT` to:
 
 Mail needs `CONNECT` on **993** and **465**; Disk/Calendar/Contacts need only **443**. A proxy that only permits 443 will serve everything except Mail.
 
+> **IMAP CONNECTs by resolved IP, not hostname.** `imapflow` (IMAP) pre-resolves the host and sends `CONNECT <IP>:993`, whereas SMTP (`nodemailer`) and Disk/Calendar/Contacts (`undici`) send `CONNECT <hostname>:port`. So a proxy ACL that authorises by **hostname/domain** (e.g. squid `acl ... dstdomain .yandex.ru`) will let everything through **except IMAP** — and IMAP fails with `EPROXY` / `Invalid response from proxy: 403` while the rest works. Allow `CONNECT` to **993 by destination IP** (e.g. squid `acl ... dst imap.yandex.ru` or Yandex IP ranges). `yad_diagnose` reports the `connectVia` (`ip`/`hostname`) used per transport and probes IMAP the same way the real client does, so it will surface this mismatch instead of hiding it.
+
 > **Large Disk files (REST API).** Uploads/downloads above 10 MB stream to a *dynamic* CDN host `uploader*.disk.yandex.net` / `downloader*.disk.yandex.net` (the exact subdomain is assigned per request). The proxy must allow `CONNECT` to `*.disk.yandex.net:443` in addition to `cloud-api.yandex.ru:443`. If you use `NO_PROXY`, list **both** `cloud-api.yandex.ru` and `.disk.yandex.net` together — otherwise the metadata call and the bulk transfer can split across proxy and direct paths. `yad_diagnose` cannot probe the dynamic CDN host, so it only reports `cloud-api.yandex.ru` for Disk REST.
 
 ### Validating a deployment

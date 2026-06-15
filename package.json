@@ -1,6 +1,6 @@
 {
   "name": "yad",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Yandex services (Mail, Calendar, Disk, Contacts) — OpenClaw plugin & MCP server",
   "type": "module",
   "main": "dist/index.js",

@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.1
+
+- **Fix: `yad_diagnose` reported a false green for IMAP behind a hostname-scoped proxy ACL.** The reachability probe sent `CONNECT <hostname>` for every transport, but `imapflow` (IMAP) pre-resolves the host and sends `CONNECT <IP>:993`. A proxy that authorises CONNECT by hostname/domain (e.g. squid `dstdomain .yandex.ru`) let the hostname-probe through while denying the real IP-based IMAP connection — so diagnostics showed IMAP `ok=true` while `yad_mail_*` failed with `EPROXY` / `Invalid response from proxy: 403`. The probe now replicates each client's actual CONNECT target (IMAP → DNS-resolved IP like imapflow; SMTP/WebDAV/CalDAV/CardDAV/Disk-REST → hostname), and each result includes a `connectVia` field (`ip`/`hostname`). The fail-closed docs and the `yad_diagnose` description now state that the proxy ACL must allow CONNECT to 993 by destination IP (not just by hostname). The v1.4.0 proxy transport itself was correct — this is a diagnostics-accuracy fix.
+
 ## v1.4.0
 
 - **Proxy-aware transport for fail-closed networks.** All outbound connections — Mail (IMAP/SMTP), Disk (WebDAV + REST), Calendar (CalDAV), Contacts (CardDAV) — now route through an HTTP CONNECT or SOCKS proxy when one is configured via the standard `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` environment variables (plus an explicit `YAD_PROXY_URL` override). Required for containers with no direct internet egress. When no proxy env is set, behaviour is unchanged — direct connections, no regression. Node's global `fetch` (undici) ignores proxy env, and the native `node:https` streaming upload/download paths connect directly; both are now routed explicitly, and imapflow/nodemailer receive the proxy too. Supports `http`/`https`/`socks5` schemes; `NO_PROXY` is honoured per host. Mail requires the proxy to allow `CONNECT` on ports 993 (IMAP) and 465 (SMTP); Disk/Calendar/Contacts need only 443.

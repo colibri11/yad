@@ -22,19 +22,35 @@
  *
  * Supports http://, https:// and socks(4/5):// proxy schemes.
  */
+import dns from "node:dns/promises";
 import https from "node:https";
 import net from "node:net";
 import tls from "node:tls";
 import * as socks from "socks";
 import { Agent, ProxyAgent } from "undici";
 export const TRANSPORTS = [
-    { name: "IMAP", host: "imap.yandex.ru", port: 993 },
+    { name: "IMAP", host: "imap.yandex.ru", port: 993, connectByIp: true },
     { name: "SMTP", host: "smtp.yandex.ru", port: 465 },
     { name: "WebDAV (Disk)", host: "webdav.yandex.ru", port: 443 },
     { name: "CalDAV", host: "caldav.yandex.ru", port: 443 },
     { name: "CardDAV", host: "carddav.yandex.ru", port: 443 },
     { name: "Disk REST", host: "cloud-api.yandex.ru", port: 443 },
 ];
+/**
+ * Resolve what the real client would put in the CONNECT request for an endpoint:
+ * the DNS-resolved IP for `connectByIp` transports (matching imapflow), or the
+ * hostname otherwise. Exported for testing.
+ */
+export async function connectTargetFor(endpoint) {
+    if (!endpoint.connectByIp)
+        return { host: endpoint.host, via: "hostname" };
+    if (net.isIP(endpoint.host))
+        return { host: endpoint.host, via: "ip" };
+    const ips = await dns.resolve(endpoint.host); // same call imapflow makes
+    if (!ips?.length)
+        throw new Error(`DNS resolve of ${endpoint.host} returned no records`);
+    return { host: ips[0], via: "ip" };
+}
 // ---------------------------------------------------------------------------
 // Env resolution
 // ---------------------------------------------------------------------------
@@ -381,10 +397,14 @@ function withTimeout(p, ms) {
 /**
  * Test reachability of one endpoint (through the proxy if configured).
  *
- * Establishes the tunnel (CONNECT / SOCKS) and then performs a real TLS
- * handshake to the endpoint — all yad endpoints are implicit-TLS (993/465/443),
- * so a successful handshake confirms end-to-end reachability, not merely that
- * the proxy accepted CONNECT. No credentials are sent.
+ * Replicates exactly what the real client puts in the CONNECT request: the
+ * DNS-resolved IP for `connectByIp` transports (IMAP/imapflow), or the hostname
+ * otherwise (SMTP/nodemailer, DAV/REST/undici). This is what makes the probe
+ * honest — a proxy that authorises CONNECT by hostname but not by IP (squid
+ * `dstdomain`) is correctly reported as a FAILURE for IMAP, instead of a false
+ * green. It then performs a real TLS handshake (all yad endpoints are
+ * implicit-TLS on 993/465/443) with the hostname as SNI, matching the client.
+ * No credentials are sent.
  *
  * The default timeout is slightly above PROXY_CONNECT_TIMEOUT_MS so the inner
  * tunnel-setup guard fires first with a specific error instead of a generic
@@ -394,24 +414,25 @@ export async function probeReachability(endpoint, timeoutMs = PROXY_CONNECT_TIME
     const proxyUrl = resolveProxy(endpoint.host);
     const via = proxyUrl ? "proxy" : "direct";
     const proxy = proxyUrl ? maskProxy(proxyUrl) : null;
+    const connectVia = endpoint.connectByIp ? "ip" : "hostname";
+    const base = { name: endpoint.name, host: endpoint.host, port: endpoint.port, via, proxy };
     try {
+        const { host: target } = await connectTargetFor(endpoint);
         const socket = await withTimeout((async () => {
             const raw = proxyUrl
-                ? await establishRawSocket(proxyUrl, endpoint.host, endpoint.port)
-                : await directConnect(endpoint.host, endpoint.port);
+                ? await establishRawSocket(proxyUrl, target, endpoint.port)
+                : await directConnect(target, endpoint.port);
+            // TLS uses the real hostname as SNI even when CONNECT used the IP (matches imapflow).
             return await tlsWrap(raw, endpoint.host);
         })(), timeoutMs);
         socket.destroy();
-        return { name: endpoint.name, host: endpoint.host, port: endpoint.port, ok: true, via, proxy };
+        return { ...base, ok: true, connectVia, connectTarget: target };
     }
     catch (err) {
         return {
-            name: endpoint.name,
-            host: endpoint.host,
-            port: endpoint.port,
+            ...base,
             ok: false,
-            via,
-            proxy,
+            connectVia,
             error: err instanceof Error ? err.message : String(err),
         };
     }

@@ -35,6 +35,14 @@ export function createMetaTools(info) {
                 "Use this to validate a deployment with one call: every transport should " +
                 "report ok=true. If a transport shows ok=false with a proxy set, the proxy " +
                 "likely does not allow CONNECT on that port (IMAP 993 / SMTP 465 / 443).\n\n" +
+                "The probe replicates exactly how each client addresses CONNECT (see the " +
+                "connectVia field): IMAP uses a DNS-resolved IP (imapflow pre-resolves), " +
+                "while SMTP/WebDAV/CalDAV/CardDAV/Disk-REST use the hostname. This matters " +
+                "for proxy ACLs: a rule that allows CONNECT by hostname/domain (e.g. squid " +
+                "dstdomain .yandex.ru) will pass the hostname transports but DENY IMAP, " +
+                "because IMAP arrives as CONNECT <IP>:993. Allow CONNECT to 993 by " +
+                "destination IP (e.g. squid `acl ... dst imap.yandex.ru` or Yandex IP " +
+                "ranges) for mail to work.\n\n" +
                 "NOTE: large Disk uploads/downloads (>10 MB, REST API) stream to a dynamic " +
                 "CDN host 'uploader*.disk.yandex.net' / 'downloader*.disk.yandex.net' that " +
                 "cannot be probed ahead of time (the exact subdomain is assigned per request). " +
