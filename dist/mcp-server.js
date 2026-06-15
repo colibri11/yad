@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
 import { createMetaTools } from "./src/common/meta-tools.js";
+import { proxySummary } from "./src/common/proxy.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
 import { startIdleWatcher } from "./src/mail/idle-watcher.js";
@@ -54,6 +55,7 @@ if (tools.length === 0) {
     process.exit(1);
 }
 tools.push(...createMetaTools({ version: pkg.version, enabledServices: enabled }));
+console.error(`yad-mcp: ${proxySummary()}`);
 const toolMap = new Map(tools.map((t) => [t.name, t]));
 // ---------------------------------------------------------------------------
 // MCP protocol over stdio — hand-rolled JSON-RPC 2.0.

@@ -68,6 +68,9 @@ Set `YANDEX_MAIL_IDLE_ENABLED=true` to enable background monitoring of incoming 
 | `YANDEX_MAIL_IDLE_ENABLED` | | Set to `true` to enable IDLE watcher |
 | `YANDEX_MAIL_IDLE_FOLDER` | | IMAP folder to monitor (default: `INBOX`) |
 | `YAD_UPLOAD_PROGRESS` | | Path to a log file for per-second upload progress (opt-in diagnostic) |
+| `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` | | Outbound proxy for fail-closed networks — see [Proxy support](#proxy-support-fail-closed-environments) |
+| `NO_PROXY` | | Comma-separated hosts that bypass the proxy |
+| `YAD_PROXY_URL` | | Explicit proxy override (highest precedence) |
 
 ## OpenClaw Plugin
 
@@ -107,6 +110,41 @@ In OpenClaw, IDLE actively dispatches a subagent to process each incoming email:
   "mail_idle_folder": "INBOX"
 }
 ```
+
+## Proxy support (fail-closed environments)
+
+In locked-down deployments where the container has **no direct internet egress** and the only way out is an HTTP CONNECT (or SOCKS) proxy, `yad` routes every outbound connection — Mail (IMAP/SMTP), Disk (WebDAV + REST), Calendar (CalDAV), Contacts (CardDAV) — through the proxy read from the standard environment variables.
+
+Set one of these (all are honoured, in this precedence order):
+
+```
+YAD_PROXY_URL  >  HTTPS_PROXY / https_proxy  >  ALL_PROXY / all_proxy  >  HTTP_PROXY / http_proxy
+```
+
+- **Schemes:** `http://`, `https://`, `socks5://` (also `socks4`/`socks4a`). Credentials may be embedded (`http://user:pass@proxy:3128`).
+- **`NO_PROXY` / `no_proxy`** is respected: matching hosts (exact, `.suffix`, `*.suffix`, or `*`) connect directly.
+- **No proxy set → no behaviour change.** Connections are made directly, exactly as before.
+
+### Required proxy permissions
+
+Because each transport uses a different port, the proxy must allow `CONNECT` to:
+
+| Transport | Host | Port |
+|-----------|------|------|
+| IMAP (Mail read) | `imap.yandex.ru` | **993** |
+| SMTP (Mail send) | `smtp.yandex.ru` | **465** |
+| WebDAV (Disk) | `webdav.yandex.ru` | 443 |
+| Disk REST (large files + CDN) | `cloud-api.yandex.ru`, `uploader*.disk.yandex.net` | 443 |
+| CalDAV | `caldav.yandex.ru` | 443 |
+| CardDAV | `carddav.yandex.ru` | 443 |
+
+Mail needs `CONNECT` on **993** and **465**; Disk/Calendar/Contacts need only **443**. A proxy that only permits 443 will serve everything except Mail.
+
+> **Large Disk files (REST API).** Uploads/downloads above 10 MB stream to a *dynamic* CDN host `uploader*.disk.yandex.net` / `downloader*.disk.yandex.net` (the exact subdomain is assigned per request). The proxy must allow `CONNECT` to `*.disk.yandex.net:443` in addition to `cloud-api.yandex.ru:443`. If you use `NO_PROXY`, list **both** `cloud-api.yandex.ru` and `.disk.yandex.net` together — otherwise the metadata call and the bulk transfer can split across proxy and direct paths. `yad_diagnose` cannot probe the dynamic CDN host, so it only reports `cloud-api.yandex.ru` for Disk REST.
+
+### Validating a deployment
+
+The `yad_diagnose` tool reports which proxy each transport resolves to (credentials masked) and runs a live TCP reachability probe to every endpoint through the proxy — no credentials are sent. A healthy deployment shows `ok: true` for every transport. The startup log also prints a one-line proxy summary.
 
 ## Tools
 
@@ -157,6 +195,13 @@ Upload/download route automatically: files up to 10 MB go via WebDAV (app passwo
 | `yad_contacts_create` | Create contact |
 | `yad_contacts_update` | Update contact |
 | `yad_contacts_delete` | Delete contact |
+
+### Meta
+
+| Tool | Description |
+|------|-------------|
+| `yad_version` | Plugin version, enabled services, uptime, pid |
+| `yad_diagnose` | Proxy resolution per transport + live reachability probe (see [Proxy support](#proxy-support-fail-closed-environments)) |
 
 ## Creating app passwords
 

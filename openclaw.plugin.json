@@ -30,7 +30,8 @@
       "yad_contacts_create",
       "yad_contacts_update",
       "yad_contacts_delete",
-      "yad_version"
+      "yad_version",
+      "yad_diagnose"
     ]
   },
   "configSchema": {

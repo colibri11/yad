@@ -10,6 +10,8 @@
  * - Address book path: /addressbook/{login}/1/
  */
 
+import { proxyFetch } from "./proxy.js";
+
 const CARDDAV_BASE = "https://carddav.yandex.ru";
 const TIMEOUT_MS = 30_000;
 
@@ -42,7 +44,7 @@ export async function discoverAddressBooks(
   auth: CardDavAuth,
 ): Promise<Array<{ url: string; displayName: string }>> {
   const url = `${CARDDAV_BASE}/addressbook/${encodeURIComponent(auth.login)}/`;
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "PROPFIND",
     headers: {
       Authorization: authHeader(auth),
@@ -78,7 +80,7 @@ export async function discoverAddressBooks(
 /** List contacts in address book via PROPFIND Depth:1 */
 export async function listContacts(auth: CardDavAuth): Promise<CardDavContact[]> {
   const url = addressBookUrl(auth.login);
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "PROPFIND",
     headers: {
       Authorization: authHeader(auth),
@@ -123,7 +125,7 @@ export async function listContacts(auth: CardDavAuth): Promise<CardDavContact[]>
 /** GET a single contact vCard */
 export async function getContact(auth: CardDavAuth, href: string): Promise<string> {
   const url = href.startsWith("http") ? href : `${CARDDAV_BASE}${href}`;
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "GET",
     headers: {
       Authorization: authHeader(auth),
@@ -162,7 +164,7 @@ export async function putContact(
   };
   if (etag) headers["If-Match"] = `"${etag}"`;
 
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "PUT",
     headers,
     body: vcard,
@@ -187,7 +189,7 @@ export async function updateContact(
   };
   if (etag) headers["If-Match"] = `"${etag}"`;
 
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "PUT",
     headers,
     body: vcard,
@@ -201,7 +203,7 @@ export async function updateContact(
 /** DELETE — remove a contact */
 export async function deleteContact(auth: CardDavAuth, href: string): Promise<void> {
   const url = href.startsWith("http") ? href : `${CARDDAV_BASE}${href}`;
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "DELETE",
     headers: { Authorization: authHeader(auth) },
     signal: AbortSignal.timeout(TIMEOUT_MS),

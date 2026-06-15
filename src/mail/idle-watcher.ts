@@ -1,6 +1,6 @@
-import { ImapFlow } from "imapflow";
+import type { ImapFlow } from "imapflow";
 import type { Logger, YandexPluginConfig } from "../common/types.js";
-import { requirePassword, resolveLogin } from "../common/types.js";
+import { createImapClient } from "./clients.js";
 
 export interface MailEnvelope {
   uid: number;
@@ -28,17 +28,7 @@ export function startIdleWatcher(opts: IdleWatcherOptions): { stop: () => Promis
   let backoffMs = 1000;
 
   function createClient(): ImapFlow {
-    return new ImapFlow({
-      host: "imap.yandex.ru",
-      port: 993,
-      secure: true,
-      auth: {
-        user: resolveLogin(config.login),
-        pass: requirePassword(config, "mail"),
-      },
-      maxIdleTime: 5 * 60 * 1000,
-      logger: false,
-    });
+    return createImapClient(config, { maxIdleTime: 5 * 60 * 1000 });
   }
 
   async function connect() {

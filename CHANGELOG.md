@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.0
+
+- **Proxy-aware transport for fail-closed networks.** All outbound connections — Mail (IMAP/SMTP), Disk (WebDAV + REST), Calendar (CalDAV), Contacts (CardDAV) — now route through an HTTP CONNECT or SOCKS proxy when one is configured via the standard `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` environment variables (plus an explicit `YAD_PROXY_URL` override). Required for containers with no direct internet egress. When no proxy env is set, behaviour is unchanged — direct connections, no regression. Node's global `fetch` (undici) ignores proxy env, and the native `node:https` streaming upload/download paths connect directly; both are now routed explicitly, and imapflow/nodemailer receive the proxy too. Supports `http`/`https`/`socks5` schemes; `NO_PROXY` is honoured per host. Mail requires the proxy to allow `CONNECT` on ports 993 (IMAP) and 465 (SMTP); Disk/Calendar/Contacts need only 443.
+- **New tool: `yad_diagnose`.** Reports which proxy each transport resolves to (credentials masked) and runs a live reachability probe — tunnel setup plus a TLS handshake, no credentials sent — to every endpoint. Validates a deployment in a single call. The startup log also prints a one-line proxy summary.
+- IMAP client creation is centralised into a single factory shared by the mail tools and the IDLE watcher, so proxy support and future shared options apply uniformly.
+- New runtime dependencies: `undici`, `socks`.
+
 ## v1.3.1
 
 - **Fix: `ENOENT: dist/package.json` on plugin load.** v1.3.0 ships the compiled entry from `dist/index.js`, but `index.ts` and `mcp-server.ts` resolved `package.json` relative to `import.meta.url` (`./package.json`) — which after compilation points at the non-existent `dist/package.json` instead of the repo root. OpenClaw 2026.5.18 gateway aborted the load with ENOENT, no `yad_*` tools registered (the `openclaw plugins list` manifest view masked it). Path corrected to `../package.json` so the compiled entry resolves the root `package.json`. Source no longer runs through `tsx`/`ts-node` directly — `dist/` is the contractual entry point since OpenClaw 5.18.

@@ -1,9 +1,9 @@
 import { Type } from "@sinclair/typebox";
-import { ImapFlow } from "imapflow";
+import type { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import nodemailer from "nodemailer";
 import type { YandexPluginConfig } from "../common/types.js";
-import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
+import { jsonResult, resolveLogin, textResult } from "../common/types.js";
+import { createImapClient, createSmtpTransport } from "./clients.js";
 
 /**
  * Fetch a single message by UID with fallback to sequence-number-based fetch.
@@ -26,31 +26,6 @@ async function fetchOneByUid(
   const seqs = await client.search({ uid: String(uid) });
   if (!seqs || !Array.isArray(seqs) || seqs.length === 0) return false;
   return client.fetchOne(String(seqs[0]), query as Parameters<ImapFlow["fetchOne"]>[1]);
-}
-
-function createImapClient(config: YandexPluginConfig): ImapFlow {
-  return new ImapFlow({
-    host: "imap.yandex.ru",
-    port: 993,
-    secure: true,
-    auth: {
-      user: resolveLogin(config.login),
-      pass: requirePassword(config, "mail"),
-    },
-    logger: false,
-  });
-}
-
-function createSmtpTransport(config: YandexPluginConfig) {
-  return nodemailer.createTransport({
-    host: "smtp.yandex.ru",
-    port: 465,
-    secure: true,
-    auth: {
-      user: resolveLogin(config.login),
-      pass: requirePassword(config, "mail"),
-    },
-  });
 }
 
 export function createMailTools(config: YandexPluginConfig) {

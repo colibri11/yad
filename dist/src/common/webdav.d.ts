@@ -1,33 +1,46 @@
 /**
  * Lightweight WebDAV client for Yandex.Disk.
- * Uses native fetch — no extra dependencies.
+ * Uses native fetch (via proxyFetch for proxy support) — no extra dependencies.
  */
 export interface WebDavAuth {
-    login: string;
-    password: string;
+  login: string;
+  password: string;
 }
 export interface DavResource {
-    href: string;
-    displayName: string;
-    isCollection: boolean;
-    contentLength: number;
-    contentType: string;
-    lastModified: string;
-    creationDate: string;
+  href: string;
+  displayName: string;
+  isCollection: boolean;
+  contentLength: number;
+  contentType: string;
+  lastModified: string;
+  creationDate: string;
 }
 /** Parse a WebDAV multistatus XML response into resource entries */
 export declare function parseMultistatus(xml: string): DavResource[];
 /** PROPFIND — list folder or get resource properties */
-export declare function propfind(auth: WebDavAuth, path: string, depth?: "0" | "1"): Promise<DavResource[]>;
+export declare function propfind(
+  auth: WebDavAuth,
+  path: string,
+  depth?: "0" | "1",
+): Promise<DavResource[]>;
 /** GET — download file, returns Buffer */
 export declare function download(auth: WebDavAuth, path: string): Promise<Buffer>;
 /** GET — stream file directly to local filesystem path. Returns bytes written and content type. */
-export declare function downloadToFile(auth: WebDavAuth, remotePath: string, localPath: string): Promise<{
-    bytes: number;
-    contentType: string;
+export declare function downloadToFile(
+  auth: WebDavAuth,
+  remotePath: string,
+  localPath: string,
+): Promise<{
+  bytes: number;
+  contentType: string;
 }>;
 /** PUT — upload file */
-export declare function upload(auth: WebDavAuth, path: string, body: Buffer | Uint8Array | string, contentType?: string): Promise<void>;
+export declare function upload(
+  auth: WebDavAuth,
+  path: string,
+  body: Buffer | Uint8Array | string,
+  contentType?: string,
+): Promise<void>;
 /** PUT — stream a local file as the request body using node:https (not fetch).
  *
  * Why https.request and not fetch:
@@ -41,8 +54,13 @@ export declare function upload(auth: WebDavAuth, path: string, body: Buffer | Ui
  * uploaded file. Short timeouts make the upload look failed when it actually
  * succeeded; the adaptive window matches Yandex's documented behaviour.
  */
-export declare function uploadFromFile(auth: WebDavAuth, remotePath: string, localPath: string, contentType?: string): Promise<{
-    bytes: number;
+export declare function uploadFromFile(
+  auth: WebDavAuth,
+  remotePath: string,
+  localPath: string,
+  contentType?: string,
+): Promise<{
+  bytes: number;
 }>;
 /** Check if a resource exists (PROPFIND with Depth 0, returns false on 404) */
 export declare function exists(auth: WebDavAuth, path: string): Promise<boolean>;
@@ -53,9 +71,19 @@ export declare function mkcolRecursive(auth: WebDavAuth, path: string): Promise<
 /** DELETE — delete file or folder */
 export declare function deleteResource(auth: WebDavAuth, path: string): Promise<void>;
 /** MOVE — move or rename */
-export declare function move(auth: WebDavAuth, from: string, to: string, overwrite?: boolean): Promise<void>;
+export declare function move(
+  auth: WebDavAuth,
+  from: string,
+  to: string,
+  overwrite?: boolean,
+): Promise<void>;
 /** COPY — copy resource */
-export declare function copy(auth: WebDavAuth, from: string, to: string, overwrite?: boolean): Promise<void>;
+export declare function copy(
+  auth: WebDavAuth,
+  from: string,
+  to: string,
+  overwrite?: boolean,
+): Promise<void>;
 /** PROPPATCH — publish resource and get public URL */
 export declare function publish(auth: WebDavAuth, path: string): Promise<string>;
 /** PROPPATCH — unpublish resource */

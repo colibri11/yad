@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { probeReachability, proxyReport, TRANSPORTS } from "./proxy.js";
 import { jsonResult } from "./types.js";
 
 export interface MetaInfo {
@@ -27,6 +28,55 @@ export function createMetaTools(info: MetaInfo) {
           uptimeSeconds,
           pid: process.pid,
         });
+      },
+    },
+    {
+      name: "yad_diagnose",
+      description:
+        "Diagnose yad network transport, especially in fail-closed (proxy-only) " +
+        "environments. Reports which proxy each Yandex transport (IMAP, SMTP, " +
+        "WebDAV, CalDAV, CardDAV, Disk REST) resolves to from the environment " +
+        "(HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY/YAD_PROXY_URL), with " +
+        "credentials masked, and performs a live TCP reachability probe to each " +
+        "endpoint (through the proxy when configured). No credentials are sent — " +
+        "the probe only opens and immediately closes the connection.\n\n" +
+        "Use this to validate a deployment with one call: every transport should " +
+        "report ok=true. If a transport shows ok=false with a proxy set, the proxy " +
+        "likely does not allow CONNECT on that port (IMAP 993 / SMTP 465 / 443).\n\n" +
+        "NOTE: large Disk uploads/downloads (>10 MB, REST API) stream to a dynamic " +
+        "CDN host 'uploader*.disk.yandex.net' / 'downloader*.disk.yandex.net' that " +
+        "cannot be probed ahead of time (the exact subdomain is assigned per request). " +
+        "The 'Disk REST' row only probes the metadata host cloud-api.yandex.ru. A proxy " +
+        "must also allow CONNECT to *.disk.yandex.net:443 for large-file transfers, and " +
+        "any NO_PROXY entry should cover both cloud-api.yandex.ru and *.disk.yandex.net " +
+        "together to avoid splitting one operation across proxy and direct paths.\n\n" +
+        "Set probe=false to only report proxy resolution without opening sockets.",
+      parameters: Type.Object(
+        {
+          probe: Type.Optional(
+            Type.Boolean({
+              description: "Run live reachability probes (default true)",
+              default: true,
+            }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      async execute(_id: string, params: { probe?: boolean }) {
+        const report = proxyReport();
+        const anyProxy = report.some((r) => r.proxy);
+        const result: Record<string, unknown> = {
+          version: info.version,
+          enabledServices: info.enabledServices,
+          proxyConfigured: anyProxy,
+          transports: report,
+        };
+        if (params.probe !== false) {
+          result.reachability = await Promise.all(
+            TRANSPORTS.map((endpoint) => probeReachability(endpoint)),
+          );
+        }
+        return jsonResult(result);
       },
     },
   ];

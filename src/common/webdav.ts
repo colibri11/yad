@@ -1,7 +1,9 @@
 /**
  * Lightweight WebDAV client for Yandex.Disk.
- * Uses native fetch — no extra dependencies.
+ * Uses native fetch (via proxyFetch for proxy support) — no extra dependencies.
  */
+
+import { getHttpsAgent, proxyFetch } from "./proxy.js";
 
 const WEBDAV_BASE = "https://webdav.yandex.ru";
 const TIMEOUT_MS = 30_000;
@@ -71,7 +73,7 @@ export async function propfind(
   path: string,
   depth: "0" | "1" = "1",
 ): Promise<DavResource[]> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "PROPFIND",
     headers: {
       Authorization: authHeader(auth),
@@ -89,7 +91,7 @@ export async function propfind(
 
 /** GET — download file, returns Buffer */
 export async function download(auth: WebDavAuth, path: string): Promise<Buffer> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "GET",
     headers: {
       Authorization: authHeader(auth),
@@ -112,7 +114,7 @@ export async function downloadToFile(
   const { Readable } = await import("node:stream");
   const { pipeline } = await import("node:stream/promises");
 
-  const res = await fetch(fullUrl(remotePath), {
+  const res = await proxyFetch(fullUrl(remotePath), {
     method: "GET",
     headers: {
       Authorization: authHeader(auth),
@@ -148,7 +150,7 @@ export async function upload(
   body: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<void> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "PUT",
     headers: {
       Authorization: authHeader(auth),
@@ -218,6 +220,7 @@ export async function uploadFromFile(
       else resolve({ bytes: bytesSent });
     };
 
+    const agent = getHttpsAgent(url.hostname);
     const req = https.request({
       method: "PUT",
       hostname: url.hostname,
@@ -229,6 +232,7 @@ export async function uploadFromFile(
         "Content-Length": String(stat.size),
         Expect: "100-continue",
       },
+      ...(agent ? { agent } : {}),
     });
 
     req.on("error", (err) => settle(err));
@@ -296,7 +300,7 @@ export async function uploadFromFile(
 
 /** Check if a resource exists (PROPFIND with Depth 0, returns false on 404) */
 export async function exists(auth: WebDavAuth, path: string): Promise<boolean> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "PROPFIND",
     headers: {
       Authorization: authHeader(auth),
@@ -312,7 +316,7 @@ export async function exists(auth: WebDavAuth, path: string): Promise<boolean> {
 
 /** MKCOL — create folder */
 export async function mkcol(auth: WebDavAuth, path: string): Promise<void> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "MKCOL",
     headers: {
       Authorization: authHeader(auth),
@@ -343,7 +347,7 @@ export async function mkcolRecursive(auth: WebDavAuth, path: string): Promise<st
 
 /** DELETE — delete file or folder */
 export async function deleteResource(auth: WebDavAuth, path: string): Promise<void> {
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "DELETE",
     headers: {
       Authorization: authHeader(auth),
@@ -363,7 +367,7 @@ export async function move(
   to: string,
   overwrite = false,
 ): Promise<void> {
-  const res = await fetch(fullUrl(from), {
+  const res = await proxyFetch(fullUrl(from), {
     method: "MOVE",
     headers: {
       Authorization: authHeader(auth),
@@ -385,7 +389,7 @@ export async function copy(
   to: string,
   overwrite = false,
 ): Promise<void> {
-  const res = await fetch(fullUrl(from), {
+  const res = await proxyFetch(fullUrl(from), {
     method: "COPY",
     headers: {
       Authorization: authHeader(auth),
@@ -409,7 +413,7 @@ export async function publish(auth: WebDavAuth, path: string): Promise<string> {
   </prop></set>
 </propertyupdate>`;
 
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "PROPPATCH",
     headers: {
       Authorization: authHeader(auth),
@@ -437,7 +441,7 @@ export async function unpublish(auth: WebDavAuth, path: string): Promise<void> {
   </prop></remove>
 </propertyupdate>`;
 
-  const res = await fetch(fullUrl(path), {
+  const res = await proxyFetch(fullUrl(path), {
     method: "PROPPATCH",
     headers: {
       Authorization: authHeader(auth),

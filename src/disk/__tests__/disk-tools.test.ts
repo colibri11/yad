@@ -13,6 +13,8 @@ vi.mock("../../common/webdav.js", () => ({
   copy: vi.fn(),
   publish: vi.fn(),
   unpublish: vi.fn(),
+  uploadFromFile: vi.fn(),
+  downloadToFile: vi.fn(),
 }));
 
 import * as webdav from "../../common/webdav.js";
@@ -177,8 +179,8 @@ describe("yad_disk_upload", () => {
     expect(result.content[0].text).toContain("/image.png");
   });
 
-  it("uploads from local file via source_path", async () => {
-    vi.mocked(webdav.upload).mockResolvedValue(undefined);
+  it("uploads from local file via source_path (streamed through WebDAV)", async () => {
+    vi.mocked(webdav.uploadFromFile).mockResolvedValue({ bytes: 4 });
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
@@ -195,10 +197,11 @@ describe("yad_disk_upload", () => {
         content_type: "image/png",
       });
 
-      expect(webdav.upload).toHaveBeenCalledWith(
+      // Small source_path uploads stream via WebDAV uploadFromFile (not buffered upload).
+      expect(webdav.uploadFromFile).toHaveBeenCalledWith(
         expect.objectContaining({ login: "user@yandex.ru" }),
         "/photo.png",
-        fileContent,
+        tmpFile,
         "image/png",
       );
       expect(result.content[0].text).toContain("/photo.png");

@@ -4,14 +4,14 @@ export declare function unfold(text: string): string;
  *  Parses only inside BEGIN:VEVENT...END:VEVENT to avoid
  *  picking up properties from VTIMEZONE or other components. */
 export declare function parseVEvent(ical: string): {
-    summary: string;
-    dtstart: string | undefined;
-    dtend: string | undefined;
-    location: string | undefined;
-    description: string | undefined;
-    uid: string | undefined;
-    status: string | undefined;
-    rrule: string | undefined;
+  summary: string;
+  dtstart: string | undefined;
+  dtend: string | undefined;
+  location: string | undefined;
+  description: string | undefined;
+  uid: string | undefined;
+  status: string | undefined;
+  rrule: string | undefined;
 };
 /** Convert ISO 8601 string to iCalendar DTSTART/DTEND format (basic) */
 export declare function formatDT(iso: string): string;

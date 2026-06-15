@@ -25,6 +25,7 @@ vi.mock("tsdav", () => ({
   }),
 }));
 
+import { createDAVClient } from "tsdav";
 import { createCalendarTools } from "../calendar-tools.js";
 
 const config: YandexPluginConfig = {
@@ -204,5 +205,16 @@ describe("yad_calendar_delete_event", () => {
     expect(opts.method).toBe("DELETE");
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("CalDAV proxy routing", () => {
+  it("injects the proxy-aware fetch into the tsdav client", async () => {
+    const tool = findTool("yad_calendar_list");
+    mockFetchCalendars.mockResolvedValue([]);
+    await tool.execute("id", {});
+    expect(createDAVClient).toHaveBeenCalledWith(
+      expect.objectContaining({ fetch: expect.any(Function) }),
+    );
   });
 });

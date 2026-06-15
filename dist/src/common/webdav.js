@@ -1,7 +1,8 @@
 /**
  * Lightweight WebDAV client for Yandex.Disk.
- * Uses native fetch — no extra dependencies.
+ * Uses native fetch (via proxyFetch for proxy support) — no extra dependencies.
  */
+import { getHttpsAgent, proxyFetch } from "./proxy.js";
 const WEBDAV_BASE = "https://webdav.yandex.ru";
 const TIMEOUT_MS = 30_000;
 function authHeader(auth) {
@@ -42,7 +43,7 @@ function extractTag(xml, tagName) {
 }
 /** PROPFIND — list folder or get resource properties */
 export async function propfind(auth, path, depth = "1") {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "PROPFIND",
         headers: {
             Authorization: authHeader(auth),
@@ -59,7 +60,7 @@ export async function propfind(auth, path, depth = "1") {
 }
 /** GET — download file, returns Buffer */
 export async function download(auth, path) {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "GET",
         headers: {
             Authorization: authHeader(auth),
@@ -76,7 +77,7 @@ export async function downloadToFile(auth, remotePath, localPath) {
     const fs = await import("node:fs");
     const { Readable } = await import("node:stream");
     const { pipeline } = await import("node:stream/promises");
-    const res = await fetch(fullUrl(remotePath), {
+    const res = await proxyFetch(fullUrl(remotePath), {
         method: "GET",
         headers: {
             Authorization: authHeader(auth),
@@ -107,7 +108,7 @@ export async function downloadToFile(auth, remotePath, localPath) {
 }
 /** PUT — upload file */
 export async function upload(auth, path, body, contentType = "application/octet-stream") {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "PUT",
         headers: {
             Authorization: authHeader(auth),
@@ -167,6 +168,7 @@ export async function uploadFromFile(auth, remotePath, localPath, contentType = 
             else
                 resolve({ bytes: bytesSent });
         };
+        const agent = getHttpsAgent(url.hostname);
         const req = https.request({
             method: "PUT",
             hostname: url.hostname,
@@ -178,6 +180,7 @@ export async function uploadFromFile(auth, remotePath, localPath, contentType = 
                 "Content-Length": String(stat.size),
                 Expect: "100-continue",
             },
+            ...(agent ? { agent } : {}),
         });
         req.on("error", (err) => settle(err));
         req.on("continue", () => {
@@ -231,7 +234,7 @@ export async function uploadFromFile(auth, remotePath, localPath, contentType = 
 }
 /** Check if a resource exists (PROPFIND with Depth 0, returns false on 404) */
 export async function exists(auth, path) {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "PROPFIND",
         headers: {
             Authorization: authHeader(auth),
@@ -248,7 +251,7 @@ export async function exists(auth, path) {
 }
 /** MKCOL — create folder */
 export async function mkcol(auth, path) {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "MKCOL",
         headers: {
             Authorization: authHeader(auth),
@@ -276,7 +279,7 @@ export async function mkcolRecursive(auth, path) {
 }
 /** DELETE — delete file or folder */
 export async function deleteResource(auth, path) {
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "DELETE",
         headers: {
             Authorization: authHeader(auth),
@@ -290,7 +293,7 @@ export async function deleteResource(auth, path) {
 }
 /** MOVE — move or rename */
 export async function move(auth, from, to, overwrite = false) {
-    const res = await fetch(fullUrl(from), {
+    const res = await proxyFetch(fullUrl(from), {
         method: "MOVE",
         headers: {
             Authorization: authHeader(auth),
@@ -306,7 +309,7 @@ export async function move(auth, from, to, overwrite = false) {
 }
 /** COPY — copy resource */
 export async function copy(auth, from, to, overwrite = false) {
-    const res = await fetch(fullUrl(from), {
+    const res = await proxyFetch(fullUrl(from), {
         method: "COPY",
         headers: {
             Authorization: authHeader(auth),
@@ -328,7 +331,7 @@ export async function publish(auth, path) {
     <public_url xmlns="urn:yandex:disk:meta">true</public_url>
   </prop></set>
 </propertyupdate>`;
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "PROPPATCH",
         headers: {
             Authorization: authHeader(auth),
@@ -352,7 +355,7 @@ export async function unpublish(auth, path) {
     <public_url xmlns="urn:yandex:disk:meta"/>
   </prop></remove>
 </propertyupdate>`;
-    const res = await fetch(fullUrl(path), {
+    const res = await proxyFetch(fullUrl(path), {
         method: "PROPPATCH",
         headers: {
             Authorization: authHeader(auth),

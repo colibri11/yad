@@ -16,13 +16,22 @@
  * Symmetric for download via /v1/disk/resources/download.
  */
 /** Upload a local file via REST API (two-step: get URL, then PUT). */
-export declare function restUploadFile(token: string, remotePath: string, localPath: string, overwrite?: boolean): Promise<{
-    bytes: number;
+export declare function restUploadFile(
+  token: string,
+  remotePath: string,
+  localPath: string,
+  overwrite?: boolean,
+): Promise<{
+  bytes: number;
 }>;
 /** Download a remote file via REST API to a local path (streaming). */
-export declare function restDownloadToFile(token: string, remotePath: string, localPath: string): Promise<{
-    bytes: number;
-    contentType: string;
+export declare function restDownloadToFile(
+  token: string,
+  remotePath: string,
+  localPath: string,
+): Promise<{
+  bytes: number;
+  contentType: string;
 }>;
 /** Download a remote file via REST API into memory (for small in-context usage). */
 export declare function restDownloadBuffer(token: string, remotePath: string): Promise<Buffer>;

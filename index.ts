@@ -5,6 +5,7 @@ import type { AnyAgentTool, OpenClawPluginDefinition } from "openclaw/plugin-sdk
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
 import { createMetaTools } from "./src/common/meta-tools.js";
+import { proxySummary } from "./src/common/proxy.js";
 import type { YandexPluginConfig } from "./src/common/types.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
@@ -31,6 +32,8 @@ export default definePluginEntry({
       );
       return;
     }
+
+    api.logger.info(`Yandex plugin: ${proxySummary()}`);
 
     const registerTools = (tools: unknown[]) => {
       for (const tool of tools) {

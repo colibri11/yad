@@ -1,5 +1,4 @@
-import { ImapFlow } from "imapflow";
-import { requirePassword, resolveLogin } from "../common/types.js";
+import { createImapClient } from "./clients.js";
 const MAX_BACKOFF_MS = 30_000;
 export function startIdleWatcher(opts) {
     const { config, logger, notifyAgent, folder } = opts;
@@ -8,17 +7,7 @@ export function startIdleWatcher(opts) {
     let reconnectTimer = null;
     let backoffMs = 1000;
     function createClient() {
-        return new ImapFlow({
-            host: "imap.yandex.ru",
-            port: 993,
-            secure: true,
-            auth: {
-                user: resolveLogin(config.login),
-                pass: requirePassword(config, "mail"),
-            },
-            maxIdleTime: 5 * 60 * 1000,
-            logger: false,
-        });
+        return createImapClient(config, { maxIdleTime: 5 * 60 * 1000 });
     }
     async function connect() {
         if (stopped)

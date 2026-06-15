@@ -1,6 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import { createDAVClient, type DAVCalendar } from "tsdav";
 import { dtLine, formatDT, parseVEvent } from "../common/ical.js";
+import { proxyFetch } from "../common/proxy.js";
 import type { YandexPluginConfig } from "../common/types.js";
 import { jsonResult, requirePassword, resolveLogin, textResult } from "../common/types.js";
 
@@ -30,6 +31,9 @@ async function createCalDavClient(config: YandexPluginConfig) {
     credentials: { username: auth.login, password: auth.password },
     authMethod: "Basic",
     defaultAccountType: "caldav",
+    // Route all tsdav requests through the configured proxy (Node global fetch
+    // / undici does not honour proxy env on its own).
+    fetch: proxyFetch,
   });
 }
 
@@ -41,7 +45,7 @@ async function putCalendarObject(
   ical: string,
 ): Promise<void> {
   const url = `${calendarUrl}${filename}`;
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "PUT",
     headers: {
       Authorization: authHeader(auth),
@@ -272,7 +276,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
         const eventUrl = params.event_url.startsWith("http")
           ? params.event_url
           : `${CALDAV_BASE}${params.event_url}`;
-        const res = await fetch(eventUrl, {
+        const res = await proxyFetch(eventUrl, {
           method: "PUT",
           headers: {
             Authorization: authHeader(a),
@@ -303,7 +307,7 @@ export function createCalendarTools(config: YandexPluginConfig) {
         const url = params.event_url.startsWith("http")
           ? params.event_url
           : `${CALDAV_BASE}${params.event_url}`;
-        const res = await fetch(url, {
+        const res = await proxyFetch(url, {
           method: "DELETE",
           headers: { Authorization: authHeader(a) },
           signal: AbortSignal.timeout(TIMEOUT_MS),

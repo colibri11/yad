@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createCalendarTools } from "./src/calendar/calendar-tools.js";
 import { createMetaTools } from "./src/common/meta-tools.js";
+import { proxySummary } from "./src/common/proxy.js";
 import { createContactsTools } from "./src/contacts/contacts-tools.js";
 import { createDiskTools } from "./src/disk/disk-tools.js";
 import { startIdleWatcher } from "./src/mail/idle-watcher.js";
@@ -21,6 +22,7 @@ export default definePluginEntry({
                 "Set it in the plugin config to enable Yandex services.");
             return;
         }
+        api.logger.info(`Yandex plugin: ${proxySummary()}`);
         const registerTools = (tools) => {
             for (const tool of tools) {
                 api.registerTool(tool);

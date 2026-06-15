@@ -16,6 +16,8 @@
  * Symmetric for download via /v1/disk/resources/download.
  */
 
+import { getHttpsAgent, proxyFetch } from "../common/proxy.js";
+
 const REST_BASE = "https://cloud-api.yandex.ru/v1/disk";
 
 /** Append a diagnostic line to the progress log, if opt-in env var is set. */
@@ -70,7 +72,7 @@ async function getUploadHref(
 ): Promise<string> {
   const url = `${REST_BASE}/resources/upload?path=${encodeURIComponent(remotePath)}&overwrite=${overwrite}`;
   await trace(`getUploadHref: GET ${url}`);
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "GET",
     headers: { Authorization: `OAuth ${token}` },
     signal: AbortSignal.timeout(30_000),
@@ -88,7 +90,7 @@ async function getUploadHref(
 /** Get a temporary download URL for the given remote path. */
 async function getDownloadHref(token: string, remotePath: string): Promise<string> {
   const url = `${REST_BASE}/resources/download?path=${encodeURIComponent(remotePath)}`;
-  const res = await fetch(url, {
+  const res = await proxyFetch(url, {
     method: "GET",
     headers: { Authorization: `OAuth ${token}` },
     signal: AbortSignal.timeout(30_000),
@@ -138,6 +140,7 @@ async function putToUploadUrl(uploadUrl: string, localPath: string): Promise<{ b
       else resolve({ bytes: bytesSent });
     };
 
+    const agent = getHttpsAgent(url.hostname);
     const req = https.request({
       method: "PUT",
       hostname: url.hostname,
@@ -147,6 +150,7 @@ async function putToUploadUrl(uploadUrl: string, localPath: string): Promise<{ b
         "Content-Length": String(stat.size),
         "Content-Type": "application/octet-stream",
       },
+      ...(agent ? { agent } : {}),
     });
 
     void trace(`putToUploadUrl: PUT ${url.hostname}${url.pathname.substring(0, 60)}...`);
@@ -209,7 +213,7 @@ async function getFromDownloadUrl(
   const { Readable } = await import("node:stream");
   const { pipeline } = await import("node:stream/promises");
 
-  const res = await fetch(downloadUrl);
+  const res = await proxyFetch(downloadUrl);
   if (!res.ok) {
     throw new Error(`Yandex REST GET failed: ${res.status} ${res.statusText}`);
   }
@@ -232,7 +236,7 @@ async function getFromDownloadUrl(
 
 /** GET from the temporary download URL, returning a Buffer. */
 async function getBufferFromDownloadUrl(downloadUrl: string): Promise<Buffer> {
-  const res = await fetch(downloadUrl);
+  const res = await proxyFetch(downloadUrl);
   if (!res.ok) {
     throw new Error(`Yandex REST GET failed: ${res.status} ${res.statusText}`);
   }
